@@ -1,26 +1,18 @@
-
 import torch
 import numpy as np
-import argparse
-import sys
 import os
-import threading
 import cv2
+import h5py
+from torch.utils.data import DataLoader
 from queue import Queue
+import threading
 
 global size
 
-
-
-def dino_tokenizer(path: str, output_path: str, verbose: bool) -> None:
-    '''
-    Converts webm video files a listed path to frames compressed with dinov2 
-
-
-
-    '''
+def load_dino_model():
+    """Load the DINOv2 model."""
     import dinov2
-    BACKBONE_SIZE = 'large'
+    BACKBONE_SIZE = "small"
     backbone_archs = {
         "small": "vits14",
         "base": "vitb14",
@@ -28,91 +20,143 @@ def dino_tokenizer(path: str, output_path: str, verbose: bool) -> None:
         "giant": "vitg14",
     }
     backbone_arch = backbone_archs[BACKBONE_SIZE]
-    backbone_name = f"dinov2_{backbone_arch}"
+    model = torch.hub.load("facebookresearch/dinov2", f"dinov2_{backbone_arch}")
+    model.eval().cuda()
+    return model
 
-    model = torch.hub.load(repo_or_dir="facebookresearch/dinov2", model=backbone_name)
+def preprocess_frame(frame: np.ndarray) -> torch.Tensor:
+    """Resize and normalize the frame for DINOv2 processing."""
+    frame = cv2.resize(frame, (size, size))
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    inp = torch.tensor(frame.transpose(2, 0, 1), dtype=torch.float32).unsqueeze(0).to('cuda')
+    return inp
 
-    model.eval()
-    model.cuda()
+def process_video_dino(video_path, output_folder, model, batch_size=16):
+    """Process a video into latent representations using DINOv2."""
+    cap = cv2.VideoCapture(video_path)
+    frames = []
+    
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+        frames.append(preprocess_frame(frame))
+    
+    cap.release()
 
+    # Process in batches for efficiency
+    frame_batches = [torch.cat(frames[i:i+batch_size], dim=0) for i in range(0, len(frames), batch_size)]
 
-    def encode_frame(model, frame: np.ndarray) -> np.ndarray:
-        '''
-        Takes in an image and a dinov2 model, resizes image, and outputs the 
-        latent representation of the image 
+    latents = [model(batch).cpu().detach().numpy() for batch in frame_batches]
+    
+    np.save(f"{output_folder}.npy", np.concatenate(latents, axis=0))
 
-        model:
-            dinov2 model
-        frame: 
-            numpy array of shape (w, h, c)
-
-        OUTPUT:
-            latent: numpy array of shape (batch_size, 1024)
-        '''
-        frame = cv2.resize(frame, (size, size))
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        inp = torch.tensor(np.array(frame).transpose(2, 1, 0).reshape((1, 3, size, size)), dtype=torch.float32).to('cuda')
-        latent = model(inp)
-        print(latent.shape)
-        return latent
-
-
-    def save_frames(frame_queue: Queue, output_path: str, model) -> None:
-            while True:
-                frame_id, frame = frame_queue.get()
-                if frame is None:
-                    break
-                tokens = encode_frame(model, frame).cpu().detach().numpy()
-                print(os.path.join(output_path, f'{frame_id}.npy'))
-                np.save(os.path.join(output_path, f'{frame_id}.npy'),tokens)
-                frame_queue.task_done()
-
-    def preprocess_video(path, output_folder, model):
-        cap = cv2.VideoCapture(path)
-        frame_queue = Queue()
-        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-        num_threads = 4  # Adjust based on your CPU
-        threads = []
-        for _ in range(num_threads):
-            t = threading.Thread(target=save_frames, args=(frame_queue, output_folder, model), daemon=True)
-            t.start()
-            threads.append(t)
-
-        # Read and enqueue frames
-        frame_id = 0
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-            frame_queue.put((frame_id, frame))
-            frame_id += 1
-
-        cap.release()
-        frame_queue.join()
-
-        # Stop worker threads
-        for _ in range(num_threads):
-            frame_queue.put((None, None))
-        for t in threads:
-            t.join()
-
-        print(f"Extracted {frame_id} frames to {output_folder}")
-
+def dino_tokenizer(path: str, output_path: str):
+    """Extract frames and convert to DINOv2 embeddings."""
+    model = load_dino_model()
+    
     for file in os.listdir(path):
-        file_no = file[:-5] # Extract number/remove file extension
+        file_no = file[:-5]  # Remove file extension
         output_dir = os.path.join(output_path, file_no)
         os.makedirs(output_dir, exist_ok=True)
-        input_dir = os.path.join(path, file)
-        preprocess_video(input_dir, output_dir, model)
+        
+        input_path = os.path.join(path, file)
+        process_video_dino(input_path, output_dir, model)
+
+
+def load_vqgan_model():
+    from OmniTokenizer import OmniTokenizer_VQGAN
+    """Load the VQGAN model."""
+    vqgan_ckpt = "./imagenet_k600.ckpt"
+    model = OmniTokenizer_VQGAN.load_from_checkpoint(vqgan_ckpt, strict=False)
+    return model
+
+def preprocess_frame_vqgan(frame: np.ndarray, size: int) -> torch.Tensor:
+    """Resize and normalize the frame for VQGAN processing."""
+    size = int(size)  # Ensure size is an integer
+    frame = cv2.resize(frame, (size, size))  # Now size is (int, int)
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    inp = torch.tensor(frame.transpose(2, 0, 1), dtype=torch.float32).unsqueeze(0).to('cuda')
+    return inp
+
+def encode_frames(model, frames):
+    """Encode a batch of frames using VQGAN."""
+    frames = frames.to('cuda')  # Stack all frames
+    print(frames.shape)
+    return model.encode(frames, False).cpu().detach().numpy()
+
+def process_video_vqgan(video_path, output_folder, model, size):
+    """Process a video into VQGAN embeddings using multiprocessing."""
+    cap = cv2.VideoCapture(video_path)
+    frames = []
+    
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+        frames.append(preprocess_frame_vqgan(frame, size))
     
 
+    # The OmniTokenizer VQGan requires vidoes to have temporal dimension 
+    # divisble by 4 plus an extra frame 
+    num_frames = len(frames)
+    frames_to_divisble_by_four = 4 - (num_frames % 4)
+    frames.extend([frames[-1] for i in range(frames_to_divisble_by_four + 1)])
 
-def vqgan_tokenizer(path, output_path, verbose):
-    from OmniTokenizer import OmniTokenizer_VQGAN
-    pass
+    cap.release()
+
+    latents = encode_frames(model, torch.stack(frames, axis=2))
+    
+    np.save(f"{output_folder}.npy", latents)
+
+def vqgan_worker(task_queue, size):
+    """Worker function for multiprocessing."""
+    model = load_vqgan_model().to('cuda')
+    
+    while True:
+        video_path, output_folder = task_queue.get()
+        if video_path is None:
+            break
+        process_video_vqgan(video_path, output_folder, model, size)
+
+def vqgan_tokenizer(path: str, output_path: str, size: int):
+
+    import multiprocessing as mp
+
+    """Multiprocessing-based tokenizer for VQGAN."""
+    num_workers = min(mp.cpu_count(), 4)
+    task_queue = mp.Queue()
+
+    # Start worker processes
+    processes = []
+    for _ in range(num_workers):
+        p = mp.Process(target=vqgan_worker, args=(task_queue, size))
+        p.start()
+        processes.append(p)
+    
+    # Assign tasks
+    for file in os.listdir(path):
+        file_no = file[:-5]
+        output_dir = os.path.join(output_path, file_no)
+        os.makedirs(output_dir, exist_ok=True)
+        
+        input_path = os.path.join(path, file)
+        task_queue.put((input_path, output_dir))
+
+
+    # Stop workers
+    for _ in range(num_workers):
+        task_queue.put((None, None))
+    
+    task_queue.close()
+    task_queue.join_thread()
+
+    for p in processes:
+        p.join()
+
 
 if __name__ == '__main__':
+    import argparse
     parser = argparse.ArgumentParser(
         prog='Data Tokenizer',
         description='Converts dataset at given directory to latent representations',
@@ -142,12 +186,13 @@ if __name__ == '__main__':
             if size % 14 != 0:
                 print("Size must be multiple of 14 for dinov2 (due to patch size)")
                 exit(1)
-            dino_tokenizer(args.path, args.output_path, 
-                           args.verbose)
+            dino_tokenizer(args.path, args.output_path)
         
         case 'vqgan':
-            vqgan_tokenizer(args.path, args.output_path, 
-                            args.verbose)
+            if (size % 8 != 0):
+                print("Size for VQGan has to be divisble by 8")
+                exit(1)
+            vqgan_tokenizer(args.path, args.output_path, int(size))
     
         case _:
             print("Invalid tokenizer type")

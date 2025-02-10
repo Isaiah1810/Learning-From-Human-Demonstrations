@@ -1,0 +1,28 @@
+--extra-index-url https://download.pytorch.org/whl/cu117
+torch==2.0.0
+torchvision==0.15.0
+omegaconf
+torchmetrics==0.10.3
+fvcore
+iopath
+xformers==0.0.18
+submitit
+--extra-index-url https://pypi.nvidia.com
+cuml-cu11
+einops
+ftfy
+h5py
+imageio
+pytorch-lightning==1.5.4
+regex
+scikit-video
+tqdm
+fairscale
+lightning
+diffusers
+accelerate
+lpips
+tensorflow
+numpy==1.24.1
+scipy
+opencv-python

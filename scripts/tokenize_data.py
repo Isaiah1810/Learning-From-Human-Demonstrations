@@ -2,111 +2,88 @@ import torch
 import numpy as np
 import os
 import cv2
+from PIL import Image
 import h5py
 import json
 import multiprocessing as mp
-from torch.utils.data import DataLoader
-
-
-def load_dino_model():
-    """Load the DINOv2 model."""
-    import dinov2
-
-    backbone_archs = {
-        "small": "vits14",
-        "base": "vitb14",
-        "large": "vitl14",
-        "giant": "vitg14",
-    }
-    model = torch.hub.load("facebookresearch/dinov2", f"dinov2_{backbone_archs['small']}")
-    model.eval().cuda()
-    return model
-
-
-def preprocess_frame(frame: np.ndarray, size: int) -> torch.Tensor:
-    """Preprocess a frame for DINO input."""
-    frame = cv2.resize(frame, (size, size))
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    return torch.tensor(frame.transpose(2, 0, 1), dtype=torch.float32).unsqueeze(0).to("cuda")
-
-
-def process_video_dino(video_path, model, size, batch_size=16):
-    """Convert video into latent DINO output."""
-    cap = cv2.VideoCapture(video_path)
-    frames = []
-
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-        frames.append(preprocess_frame(frame, size))
-    cap.release()
-
-    frame_batches = [torch.cat(frames[i:i + batch_size], dim=0) for i in range(0, len(frames), batch_size)]
-    latents = [model(batch).cpu().detach().numpy() for batch in frame_batches]
-    return np.concatenate(latents, axis=0)
-
-
-def dino_tokenizer(input_path: str, output_path: str, size: int):
-    """Extract frames and convert to DINOv2 embeddings."""
-    model = load_dino_model()
-    os.makedirs(output_path, exist_ok=True)
-    
-    with h5py.File(os.path.join(output_path, "dino_embeddings.hdf5"), "w") as f:
-        for file in os.listdir(input_path):
-            file_no = file.rsplit(".", 1)[0]
-            latents = process_video_dino(os.path.join(input_path, file), model, size)
-            f.create_dataset(file_no, data=latents, compression="gzip")
+from torchvision.transforms import ToTensor
 
 
 def load_vqgan_model():
     """Load the VQGAN model."""
     from OmniTokenizer import OmniTokenizer_VQGAN
-    model = OmniTokenizer_VQGAN.load_from_checkpoint("./imagenet_ucf_vae.ckpt", strict=False, weights_only=False)
-    return model
+    return OmniTokenizer_VQGAN.load_from_checkpoint("./imagenet_ucf_vae.ckpt", strict=False, weights_only=False)
 
+def preprocess_frame(path, size):
+    """Preprocess a single frame for tokenization."""
+    from PIL import Image
+    from torchvision.transforms import ToTensor
+    img = Image.open(path)
+    img = img.resize((size, size))
+    img = ToTensor()(img)
+    return img.unsqueeze(0)
 
-def preprocess_frame_vqgan(frame: np.ndarray, size: int) -> torch.Tensor:
-    """Resize and normalize the frame for VQGAN processing."""
-    frame = cv2.resize(frame, (size, size))
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    return torch.tensor(frame.transpose(2, 0, 1), dtype=torch.float32).unsqueeze(0).to("cuda")
-
-
-def encode_frames(model, frames):
-    """Encode a batch of frames using VQGAN."""
-    return model.encode(frames.to("cuda"), False).cpu().detach().numpy()
-
-
-def process_video_vqgan(video_path, model, size):
-    """Process a video into VQGAN embeddings."""
-    cap = cv2.VideoCapture(video_path)
-    frames = []
-
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-        frames.append(preprocess_frame_vqgan(frame, size))
-    cap.release()
-
-    num_frames = len(frames)
-    frames.extend([frames[-1]] * (4 - num_frames % 4 + 1))  # Adjust frame count to be divisible by 4
-    latents = encode_frames(model, torch.stack(frames, axis=2))
-    return latents
-
-
-def vqgan_tokenizer(input_path: str, output_path: str, size: int):
-    """Tokenize videos using VQGAN."""
-    os.makedirs(output_path, exist_ok=True)
+def tokenize_video(input_path, size, model, device):
+    """Tokenize all frames in a video directory."""
+    import torch
+    import os
+    from torchvision.transforms import ToTensor
+    from PIL import Image
     
-    with h5py.File(os.path.join(output_path, "vqgan_embeddings.hdf5"), "w") as f:
-        for file in os.listdir(input_path):
-            file_no = file.rsplit(".", 1)[0]
-            model = load_vqgan_model().to("cuda")
-            latents = process_video_vqgan(os.path.join(input_path, file), model, size)
-            f.create_dataset(file_no, data=latents, compression="gzip")
+    frames = []
+    files = sorted([os.path.join(input_path, file) for file in os.listdir(input_path) 
+                   if file.lower().endswith(('.png', '.jpg', '.jpeg'))])
+    
+    batch_size = 32
+    all_tokens = []
+    
+    for i in range(0, len(files), batch_size):
+        batch_files = files[i:i+batch_size]
+        batch_frames = []
+        
+        for file_path in batch_files:
+            img = Image.open(file_path)
+            img = img.resize((size, size))
+            img = ToTensor()(img)
+            batch_frames.append(img)
+        
+        if batch_frames:
+            batch_tensor = torch.stack(batch_frames).to(device)
+            batch_tokens = model.encode(batch_tensor, False)
+            all_tokens.append(batch_tokens)
+    
+    if all_tokens:
+        return torch.cat(all_tokens, dim=0)
+    return torch.tensor([])
 
+def vqgan_tokenizer(input_path: str, output_path: str, size: int, device: str):
+    """Tokenize videos using VQGAN."""
+    import os
+    import h5py
+    import torch
+    from tqdm import tqdm
+    
+    os.makedirs(output_path, exist_ok=True)
+    model = load_vqgan_model().to(device)
+    model.eval() 
+    
+    if all(os.path.isdir(os.path.join(input_path, d)) for d in os.listdir(input_path) if not d.startswith('.')):
+        dirs = [os.path.join(input_path, d) for d in os.listdir(input_path) if os.path.isdir(os.path.join(input_path, d))]
+    else:
+        dirs = [input_path]
+    
+    with torch.no_grad():  
+        for dir_path in tqdm(dirs, desc="Processing directories"):
+            dir_name = os.path.basename(dir_path)
+            output_file = os.path.join(output_path, f"{dir_name}.h5")
+            
+            tokens = tokenize_video(dir_path, size, model, device)
+            
+            if len(tokens) > 0:
+                with h5py.File(output_file, "w") as f:
+                    f.create_dataset('tokens', data=tokens.cpu().numpy(), 
+                                    compression="gzip", compression_opts=9)
+                print(f"Processed {dir_name}: {tokens.shape}")
 
 if __name__ == "__main__":
     import argparse
@@ -118,6 +95,11 @@ if __name__ == "__main__":
     parser.add_argument("size", type=int, help="Image size")
     
     args = parser.parse_args()
+
+    if torch.cuda.is_available():
+        device = 'cuda'
+    else:
+        device = 'cpu'
 
     if not os.path.isdir(args.path):
         print("Error: Directory does not exist")
@@ -131,6 +113,6 @@ if __name__ == "__main__":
         exit(1)
     
     if args.tokenizer == "dinov2":
-        dino_tokenizer(args.path, os.path.join(args.output_path, "dinov2"), args.size)
+        raise NotImplementedError
     else:
-        vqgan_tokenizer(args.path, os.path.join(args.output_path, "vqgan"), args.size)
+        vqgan_tokenizer(args.path, os.path.join(args.output_path, "vqgan"), args.size, device)

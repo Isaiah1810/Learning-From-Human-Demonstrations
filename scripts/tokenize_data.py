@@ -12,7 +12,7 @@ from torchvision.transforms import ToTensor
 def load_vqgan_model():
     """Load the VQGAN model."""
     from OmniTokenizer import OmniTokenizer_VQGAN
-    return OmniTokenizer_VQGAN.load_from_checkpoint("./imagenet_ucf_vae.ckpt", strict=False, weights_only=False)
+    return OmniTokenizer_VQGAN.load_from_checkpoint("./imagenet_k600.ckpt", strict=False, weights_only=False)
 
 def preprocess_frame(path, size):
     """Preprocess a single frame for tokenization."""
@@ -21,6 +21,7 @@ def preprocess_frame(path, size):
     img = Image.open(path)
     img = img.resize((size, size))
     img = ToTensor()(img)
+    img = img * 2 - 1
     return img.unsqueeze(0)
 
 def tokenize_video(input_path, size, model, device):
@@ -33,24 +34,22 @@ def tokenize_video(input_path, size, model, device):
     frames = []
     files = sorted([os.path.join(input_path, file) for file in os.listdir(input_path) 
                    if file.lower().endswith(('.png', '.jpg', '.jpeg'))])
-    
-    batch_size = 32
+    print(input_path, os.listdir(input_path))
     all_tokens = []
-    
-    for i in range(0, len(files), batch_size):
-        batch_files = files[i:i+batch_size]
-        batch_frames = []
         
-        for file_path in batch_files:
-            img = Image.open(file_path)
-            img = img.resize((size, size))
-            img = ToTensor()(img)
-            batch_frames.append(img)
+    for file_path in files:
+        img = Image.open(file_path)
+        img = img.resize((size, size))
+        img = ToTensor()(img)
+        frames.append(img)
         
-        if batch_frames:
-            batch_tensor = torch.stack(batch_frames).to(device)
-            batch_tokens = model.encode(batch_tensor, False)
-            all_tokens.append(batch_tokens)
+    if frames:
+            remainder = (len(frames) - 1) % 4
+            if remainder != 0:
+                frames.extend([frames[-1]] * (4 - remainder))
+            frame_tensor = torch.stack(frames, dim=2).reshape((1, 3, -1, size, size)).to(device)
+            tokens = model.encode(frame_tensor, False)
+            all_tokens.append(tokens)
     
     if all_tokens:
         return torch.cat(all_tokens, dim=0)
@@ -71,14 +70,13 @@ def vqgan_tokenizer(input_path: str, output_path: str, size: int, device: str):
         dirs = [os.path.join(input_path, d) for d in os.listdir(input_path) if os.path.isdir(os.path.join(input_path, d))]
     else:
         dirs = [input_path]
-    
+
     with torch.no_grad():  
         for dir_path in tqdm(dirs, desc="Processing directories"):
             dir_name = os.path.basename(dir_path)
-            output_file = os.path.join(output_path, f"{dir_name}.h5")
-            
+            output_file = os.path.join(output_path, f"{dir_name}.h5")            
             tokens = tokenize_video(dir_path, size, model, device)
-            
+            print(tokens.shape)
             if len(tokens) > 0:
                 with h5py.File(output_file, "w") as f:
                     f.create_dataset('tokens', data=tokens.cpu().numpy(), 

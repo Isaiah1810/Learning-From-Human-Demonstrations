@@ -1,31 +1,33 @@
 import numpy as np
 import torch 
 import sys
-sys.path.append("../src/modules")
+sys.path.append("./src/modules")
 from genie.action import LatentAction
 from accelerate import Accelerator
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import Dataset, DataLoader
+from torch.nn.utils.rnn import pad_sequence
 import h5py
 import os
 import json
 
-class TokenizedSthv2(DataLoader):
+class TokenizedSthv2(Dataset):
     def __init__(self, data_dir, split_json=None, dataset_name='tokens'):
         self.data_dir = data_dir
         self.dataset_name = dataset_name
 
         if split_json == None:
             self.files = os.listdir(data_dir)
-            self.files = sorted(self.files, key=lambda x: int(x.split(".")[0]))
+           # self.files = sorted(self.files, key=lambda x: int(x.split(".")[0]))
         
         else:
             self.files = []
             with open(split_json, 'r') as f:
                 json_file = json.load(f)
                 for item in json_file:
-                    self.files.append(f"{item['id']}.h5")
-            self.files = sorted(self.files, key=lambda x: int(x.split(".")[0]))
+                    if os.path.exists(os.path.join(data_dir,f"{item['id']}.h5")):
+                         self.files.append(f"{item['id']}.h5")
+           # self.files = sorted(self.files, key=lambda x: int(x.split(".")[0]))
 
         self.h5_files = [os.path.join(data_dir, fname) for fname in self.files]
 
@@ -35,10 +37,18 @@ class TokenizedSthv2(DataLoader):
     def __getitem__(self, idx):
         file_path = self.h5_files[idx]
         with h5py.File(file_path, 'r') as f:
-            data = f[self.dataset_name]
-        
+            data = f['tokens']
+            data = torch.Tensor(data)
         data = torch.tensor(data, dtype=torch.float32)
         return data
+
+
+def collate_fn(batch):
+
+    lengths = [item.shape[0] for item in batch]  # Store original time dimensions
+    padded_batch = pad_sequence(batch, batch_first=True, padding_value=0)  # Pad along `t`
+    
+    return padded_batch, torch.tensor(lengths)
 
 ENC_BLUEPRINT = (
     ('space-time_attn', {
@@ -177,9 +187,9 @@ if __name__ == '__main__':
         n_embd=256, 
     )
 
-    train_data = TokenizedSthv2(data_dir, os.path.join(labels_dir, "train.json"))
-    val_data = TokenizedSthv2(data_dir, os.path.join(labels_dir, "validation.json"))
-    test_data = TokenizedSthv2(data_dir, os.path.join(labels_dir, "test.json"))
+    train_data = DataLoader(TokenizedSthv2(data_dir, os.path.join(labels_dir, "train.json")), batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn)
+    val_data = DataLoader(TokenizedSthv2(data_dir, os.path.join(labels_dir, "validation.json")),batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn)
+    test_data = DataLoader(TokenizedSthv2(data_dir, os.path.join(labels_dir, "test.json")),batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 

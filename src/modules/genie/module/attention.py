@@ -143,10 +143,10 @@ class Adapter(nn.Module):
         k = self.to_k(key)
         v = self.to_v(val)
         
-        qkv = pack([q, k, v], '* b n d')[0]
-        qkv = rearrange(qkv, 'qkv b n (h d) -> qkv b h n d', h=self.n_head)
-        
-        return qkv
+        qkv, ps = pack([q, k, v], '* n d')
+        qkv = rearrange(qkv, 'qkv n (h d) -> qkv h n d', h=self.n_head)
+                
+        return unpack(qkv, ps, '* n h d')
 
 # Inspired by the two cool repos implementations at:
 # https://github.com/karpathy/nanoGPT/blob/master/model.py#L29
@@ -273,15 +273,14 @@ class SpatialAttention(Attention):
         cond : Tensor | None = None,
         mask: Tensor | None = None
     ) -> Tensor:
-<<<<<<< HEAD
         b, c, *t, h, w = video.shape
-=======
-        b, *_, h, w = video.shape
->>>>>>> 61e859313b5567780a36e9f5ac3733a466352d36
         
         inp = rearrange(video, 'b c ... h w -> b ... h w c')
         inp, t_ps = pack([inp], '* h w c')        
         inp, s_ps = pack([inp], 'b * c')
+        
+        # We expect the condition to be space-wise, i.e. of shape (batch, h * w, feat)
+        cond = repeat(cond, 'b hw c -> (b t) hw c', t=t if exists(t) else 1) if exists(cond) else None
         
         out = super().forward(
             inp,
@@ -335,17 +334,14 @@ class TemporalAttention(Attention):
         b, *_, h, w = video.shape
         
         inp = rearrange(video, 'b c t h w -> (b h w) t c')
-<<<<<<< HEAD
         
         # We expect the condition to be time-wise, i.e. of shape (batch, time, feat)
         cond = repeat(cond, 'b t c -> (b h w) t c', h=h, w=w) if exists(cond) else None
-=======
->>>>>>> 61e859313b5567780a36e9f5ac3733a466352d36
         
         out = super().forward(
             inp,
             key=cond,
-            mask = mask,
+            mask=mask,
         )
         
         return rearrange(out, '(b h w) t c -> b c t h w', b=b, h=h, w=w)
@@ -363,11 +359,7 @@ class SpaceTimeAttention(nn.Module):
         scale : float | None = None,
         dropout : float = 0.0,
         kernel_size : int = 3,
-<<<<<<< HEAD
         time_attn_kw : dict = {},
-=======
-        temp_attn_kw : dict = {},
->>>>>>> 61e859313b5567780a36e9f5ac3733a466352d36
         space_attn_kw : dict = {},
     ) -> None:
         super().__init__()
@@ -401,11 +393,7 @@ class SpaceTimeAttention(nn.Module):
             # * Causal attention for temporal attention
             causal=True, 
             dropout=dropout,
-<<<<<<< HEAD
             **time_attn_kw,
-=======
-            **temp_attn_kw,
->>>>>>> 61e859313b5567780a36e9f5ac3733a466352d36
         )
         
         self.ffn = ForwardBlock(
@@ -422,20 +410,19 @@ class SpaceTimeAttention(nn.Module):
     def forward(
         self,
         video : Tensor,
-        cond  : Tensor | None = None,
+        cond  : Tuple[Tensor, Tensor] | Tensor | None = None,
         mask  : Tensor | None = None,
     ) -> Tensor:
+        if not isinstance(cond, tuple):
+            cond = (cond, cond)
+        
+        space_cond, time_cond = cond
         
         # We feed the video first through the spatial attention
         # and then through the temporal attention mechanism.
         # NOTE: Positional embeddings are added within the attention
-<<<<<<< HEAD
         video = self.space_attn(video, cond=space_cond, mask=mask) + video
         video = self.temp_attn (video, cond=time_cond , mask=mask) + video
-=======
-        video = self.space_attn(video, cond=cond, mask=mask) + video
-        video = self.temp_attn (video, cond=cond, mask=mask) + video
->>>>>>> 61e859313b5567780a36e9f5ac3733a466352d36
         video = self.ffn(video) + video
         
         return video

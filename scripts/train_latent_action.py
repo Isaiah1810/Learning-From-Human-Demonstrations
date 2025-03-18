@@ -39,16 +39,16 @@ class TokenizedSthv2(Dataset):
         with h5py.File(file_path, 'r') as f:
             data = f['tokens']
             data = torch.Tensor(data)
-        data = torch.tensor(data, dtype=torch.float32)
+        data = torch.tensor(data, dtype=torch.float32).cuda()
         return data
 
 
 def collate_fn(batch):
 
-    lengths = [item.shape[0] for item in batch]  # Store original time dimensions
-    padded_batch = pad_sequence(batch, batch_first=True, padding_value=0)  # Pad along `t`
+    lengths = [item.shape[0] for item in batch]  
+    padded_batch = pad_sequence(batch, batch_first=True, padding_value=0)  
     
-    return padded_batch, torch.tensor(lengths)
+    return padded_batch
 
 ENC_BLUEPRINT = (
     ('space-time_attn', {
@@ -119,8 +119,8 @@ def train(model, train_data, val_data, optimizer, accelerator, writer, n_epochs)
 
         for batch in train_data:
             optimizer.zero_grad(set_to_none=True) 
+            loss, _ = model(batch) 
 
-            loss = model(batch) 
             accelerator.backward(loss) 
             optimizer.step() 
 

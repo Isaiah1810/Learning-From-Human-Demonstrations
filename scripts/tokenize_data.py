@@ -24,7 +24,7 @@ def preprocess_frame(path, size):
     img = img.resize((size, size))
     img = ToTensor()(img)
     img = img * 2 - 1
-    return img.unsqueeze(0)
+    return img
 
 # def tokenize_video(input_path, size, model, device, ep_len=100, sample_len=20):
 #     """Tokenize all frames in a video directory."""
@@ -81,10 +81,7 @@ def tokenize_video(input_path, size, model, device, ep_len=100, sample_len=20):
 
     frames = []
     for file_path in paths:
-        img = Image.open(file_path)
-        img = img.resize((size, size))
-        img = ToTensor()(img)
-        frames.append(img)
+        frames.append(preprocess_frame(file_path, size))
 
 
     seq_tokens = []

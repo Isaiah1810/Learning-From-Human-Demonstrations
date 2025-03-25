@@ -106,47 +106,65 @@ DEC_BLUEPRINT = (
     }),
 )
 
-def evaluate(model, data, accelerator):
+def evaluate(model, data_loader, accelerator):
     model.eval()
     total_loss = 0
-    num_batches = len(data)
+    num_batches = len(data_loader)
 
     with torch.no_grad():
-        for batch in data:
-            loss = model(batch)
+        for batch in data_loader:
+            with accelerator.autocast():
+                loss = model(batch)
             total_loss += loss.item()
-    avg_loss = total_loss / num_batches
+    
+    # Gather losses across all processes and average
+    avg_loss = accelerator.gather(total_loss)
+    avg_loss = avg_loss.mean()
+    
     return avg_loss
 
 
-def train(model, train_data, val_data, optimizer, accelerator, writer, n_epochs):
-    model.train() 
+def train(model, train_dataloader, val_dataloader, optimizer, lr_scheduler, accelerator, writer, n_epochs):
+    
+    model, optimizer, train_dataloader, val_dataloader, lr_scheduler = accelerator.prepare(
+        model, optimizer, train_dataloader, val_dataloader, lr_scheduler
+    )
 
     for epoch in range(n_epochs):
-        loss_avg = 0
-        num_batches = len(train_data)
         model.train()
-
-        for batch in train_data:
-            optimizer.zero_grad(set_to_none=True) 
-            loss, _ = model(batch) 
-
-            accelerator.backward(loss) 
-            optimizer.step() 
-
-            loss_avg += loss.item()
-
-        loss_avg /= num_batches 
-        writer.add_scalar("Epoch_Loss_Avg/train", loss_avg, epoch) 
+        total_train_loss = 0
         
-        val_loss_avg = evaluate(model, val_data, accelerator)
+        for batch in train_dataloader:
+            optimizer.zero_grad()
+            
+            with accelerator.autocast():
+                loss, _ = model(batch)
+            
+            accelerator.backward(loss)
+            
+            accelerator.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            
+            optimizer.step()
+            lr_scheduler.step()
+            
+            total_train_loss += loss.detach()
         
-        writer.add_scalar("Epoch_Loss_Avg/Validation", val_loss_avg, epoch)
+        avg_train_loss = accelerator.gather(total_train_loss).mean()
         
-        accelerator.print(f"Epoch [{epoch+1}/{n_epochs}], Training Loss: {loss_avg:.4f}, Validation Loss {val_loss_avg}") 
+        model.eval()
+        val_loss = evaluate(model, val_dataloader, accelerator)
+        
+        if accelerator.is_main_process:
+            writer.add_scalar("Epoch_Loss_Avg/train", avg_train_loss, epoch)
+            writer.add_scalar("Epoch_Loss_Avg/Validation", val_loss, epoch)
+            accelerator.print(f"Epoch [{epoch+1}/{n_epochs}], "
+                              f"Training Loss: {avg_train_loss:.4f}, "
+                              f"Validation Loss: {val_loss:.4f}")
+        
+        if accelerator.is_main_process:
+            accelerator.save_state(os.path.join(output_dir, f"checkpoint_epoch_{epoch}"))
 
-    return loss_avg
-
+    return avg_train_loss
 
 import argparse
 

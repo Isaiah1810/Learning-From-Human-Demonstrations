@@ -7,7 +7,8 @@ import h5py
 import json
 import multiprocessing as mp
 from torchvision.transforms import ToTensor
-
+import sys
+sys.path.append("./modules/src")
 
 def load_vqgan_model():
     """Load the VQGAN model."""

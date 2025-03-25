@@ -11,6 +11,9 @@ import h5py
 import os
 import json
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1, 2, 3"
+
+
 class TokenizedSthv2(Dataset):
     def __init__(self, data_dir, split_json=None, dataset_name='tokens'):
         self.data_dir = data_dir
@@ -35,7 +38,7 @@ class TokenizedSthv2(Dataset):
                 data = f['tokens']
                 data = torch.Tensor(data)
                 for i in range(data.shape[0]):
-                    self.seqs.append(file_path, i)
+                    self.seqs.append((file_path, i))
 
     def __len__(self):
         return len(self.seqs)

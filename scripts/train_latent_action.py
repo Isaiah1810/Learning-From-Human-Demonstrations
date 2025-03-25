@@ -15,22 +15,14 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1, 2, 3"
 
 
 class TokenizedSthv2(Dataset):
-    def __init__(self, data_dir, split_json=None, dataset_name='tokens'):
+    def __init__(self, data_dir, dataset_name='tokens'):
         self.data_dir = data_dir
         self.dataset_name = dataset_name
-        self.seqs = []
+
+        self.files = []
+
         if split_json == None:
             self.files = os.listdir(data_dir)
-           # self.files = sorted(self.files, key=lambda x: int(x.split(".")[0]))
-        
-        else:
-            self.files = []
-            with open(split_json, 'r') as f:
-                json_file = json.load(f)
-                for item in json_file:
-                    if os.path.exists(os.path.join(data_dir,f"{item['id']}.h5")):
-                         self.files.append(f"{item['id']}.h5")
-           # self.files = sorted(self.files, key=lambda x: int(x.split(".")[0]))
 
         self.h5_files = [os.path.join(data_dir, fname) for fname in self.files]
         for file_path in self.h5_files:
@@ -38,17 +30,16 @@ class TokenizedSthv2(Dataset):
                 data = f['tokens']
                 data = torch.Tensor(data)
                 for i in range(data.shape[0]):
-                    self.seqs.append((file_path, i))
+                    self.files.append(file_path)
 
     def __len__(self):
-        return len(self.seqs)
+        return len(self.files)
 
     def __getitem__(self, idx):
-        file_path = self.seqs[idx][0]
+        file_path = self.files[idx]
         with h5py.File(file_path, 'r') as f:
             data = f['tokens']
-            data = torch.Tensor(data)[i]
-            i = self.seqs[idx][1]
+            data = torch.Tensor(data)
         data = torch.tensor(data, dtype=torch.float32).cuda()
         return data
 
@@ -125,7 +116,7 @@ def evaluate(model, data_loader, accelerator):
 
 
 def train(model, train_dataloader, val_dataloader, optimizer, lr_scheduler, accelerator, writer, n_epochs):
-    
+
     model, optimizer, train_dataloader, val_dataloader, lr_scheduler = accelerator.prepare(
         model, optimizer, train_dataloader, val_dataloader, lr_scheduler
     )
@@ -215,9 +206,9 @@ if __name__ == '__main__':
         n_embd=256, 
     )
 
-    train_data = DataLoader(TokenizedSthv2(data_dir, os.path.join(labels_dir, "train.json")), batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn)
-    val_data = DataLoader(TokenizedSthv2(data_dir, os.path.join(labels_dir, "validation.json")),batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn)
-    test_data = DataLoader(TokenizedSthv2(data_dir, os.path.join(labels_dir, "test.json")),batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn)
+    train_data = DataLoader(TokenizedSthv2(os.path.join(data_dir, 'train')), batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn)
+    val_data = DataLoader(TokenizedSthv2(os.path.join(data_dir, 'validation')),batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn)
+    test_data = DataLoader(TokenizedSthv2(os.path.join(data_dir, 'test')),batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 

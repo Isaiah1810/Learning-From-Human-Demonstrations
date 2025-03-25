@@ -212,4 +212,4 @@ if __name__ == "__main__":
     if args.tokenizer == "dinov2":
         raise NotImplementedError
     else:
-        vqgan_tokenizer(args.path, os.path.join(args.output_path, "vqgan"), args.size, device)
+        vqgan_tokenizer(args.path, os.path.join(args.output_path, "vqgan"), args.size, device, ep_len=100, sample_len=20)

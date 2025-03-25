@@ -24,7 +24,7 @@ def preprocess_frame(path, size):
     img = img * 2 - 1
     return img.unsqueeze(0)
 
-def tokenize_video(input_path, size, model, device):
+def tokenize_video(input_path, size, model, device, sample_len=13):
     """Tokenize all frames in a video directory."""
     import torch
     import os
@@ -42,17 +42,24 @@ def tokenize_video(input_path, size, model, device):
         img = img.resize((size, size))
         img = ToTensor()(img)
         frames.append(img)
-        
-    if frames:
-            remainder = (len(frames) - 1) % 4
-            if remainder != 0:
-                frames.extend([frames[-1]] * (4 - remainder))
-            frame_tensor = torch.stack(frames, dim=2).reshape((1, 3, -1, size, size)).to(device)
-            tokens = model.encode(frame_tensor, False)
-            all_tokens.append(tokens)
+
+    ep_len = len(frames)
+    seq_per_episode = ep_len - sample_len + 1
+    
+    for i in range(seq_per_episode):
+        seq_frames = frames[i:i+sample_len]
+
+
+        if seq_frames:
+                remainder = (len(seq_frames) - 1) % 4
+                if remainder != 0:
+                    seq_frames.extend([seq_frames[-1]] * (4 - remainder))
+                frame_tensor = torch.stack(seq_frames, dim=2).reshape((1, 3, -1, size, size)).to(device)
+                tokens = model.encode(frame_tensor, False)
+                all_tokens.append(tokens)
     
     if all_tokens:
-        return torch.cat(all_tokens, dim=0)
+        return all_tokens
     return torch.tensor([])
 
 def vqgan_tokenizer(input_path: str, output_path: str, size: int, device: str):

@@ -8,7 +8,8 @@ import json
 import multiprocessing as mp
 from torchvision.transforms import ToTensor
 import sys
-sys.path.append("./modules/src")
+sys.path.append("./src/modules")
+
 
 def load_vqgan_model():
     """Load the VQGAN model."""
@@ -74,8 +75,6 @@ def tokenize_video(input_path, size, model, device, ep_len=100, sample_len=20):
 
     seqs_per_episode = ep_len - sample_len + 1
 
-    paths = os.listdir(input_path)
-
     # Pad To Meet Episode Length
     while len(paths) < ep_len:
             paths.append(paths[-1])
@@ -92,10 +91,8 @@ def tokenize_video(input_path, size, model, device, ep_len=100, sample_len=20):
     
     for i in range(seqs_per_episode):
         seq_frames = torch.stack(frames[i:i+sample_len], dim=0).to(device)
-
-        if seq_frames:
-            tokens = model.encode(seq_frames, True)
-            seq_tokens.append(tokens)
+        tokens = model.encode(seq_frames, True)
+        seq_tokens.append(tokens)
 
     return seq_tokens
 
@@ -110,6 +107,10 @@ def vqgan_tokenizer(input_path: str, output_path: str, size: int, device: str, e
     data_dir = os.path.join(input_path, 'frames')
 
     os.makedirs(output_path, exist_ok=True)
+    os.makedirs(os.path.join(output_path, 'train'), exist_ok=True)
+    os.makedirs(os.path.join(output_path, 'validation'), exist_ok=True)
+    os.makedirs(os.path.join(output_path, 'test'), exist_ok=True)
+
     model = load_vqgan_model().to(device)
     model.eval() 
 
@@ -156,9 +157,9 @@ def vqgan_tokenizer(input_path: str, output_path: str, size: int, device: str, e
     with torch.no_grad():
         seq = 0
         for dir_path in tqdm(train_dirs, desc="Tokenizing Training Data"):
-            tokens = tokenize_video(dir_path, size, model, device, seq, ep_len, sample_len)    
+            tokens = tokenize_video(dir_path, size, model, device,  ep_len, sample_len)    
             for i in range(len(tokens)):
-                with h5py.File(os.path.join(output_path, 'train', f'{seq}.h5')):
+                with h5py.File(os.path.join(output_path, 'train', f'{seq}.h5'), 'w') as f:
                       seq += 1
                       f.create_dataset('tokens', data=tokens[i].cpu().numpy(), 
                                        compression='gzip', compression_opts=9)
@@ -167,7 +168,7 @@ def vqgan_tokenizer(input_path: str, output_path: str, size: int, device: str, e
         for dir_path in tqdm(val_dirs, desc="Tokenizing Validation Data"):
             tokens = tokenize_video(dir_path, size, model, device, ep_len, sample_len)    
             for i in range(len(tokens)):
-                with h5py.File(os.path.join(output_path, 'validation', f'{seq}.h5')):
+                with h5py.File(os.path.join(output_path, 'validation', f'{seq}.h5'), 'w') as f:
                       seq += 1
                       f.create_dataset('tokens', data=tokens[i].cpu().numpy(), 
                                        compression='gzip', compression_opts=9)
@@ -176,7 +177,7 @@ def vqgan_tokenizer(input_path: str, output_path: str, size: int, device: str, e
         for dir_path in tqdm(val_dirs, desc="Tokenizing Validation Data"):
             tokens = tokenize_video(dir_path, size, model, device, ep_len, sample_len)    
             for i in range(len(tokens)):
-                with h5py.File(os.path.join(output_path, 'validation', f'{seq}.h5')):
+                with h5py.File(os.path.join(output_path, 'validation', f'{seq}.h5'), 'w') as f:
                       seq += 1
                       f.create_dataset('tokens', data=tokens[i].cpu().numpy(), 
                                        compression='gzip', compression_opts=9)

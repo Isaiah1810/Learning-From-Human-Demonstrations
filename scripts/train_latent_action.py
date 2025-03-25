@@ -15,7 +15,7 @@ class TokenizedSthv2(Dataset):
     def __init__(self, data_dir, split_json=None, dataset_name='tokens'):
         self.data_dir = data_dir
         self.dataset_name = dataset_name
-
+        self.seqs = []
         if split_json == None:
             self.files = os.listdir(data_dir)
            # self.files = sorted(self.files, key=lambda x: int(x.split(".")[0]))
@@ -30,15 +30,22 @@ class TokenizedSthv2(Dataset):
            # self.files = sorted(self.files, key=lambda x: int(x.split(".")[0]))
 
         self.h5_files = [os.path.join(data_dir, fname) for fname in self.files]
+        for file_path in self.h5_files:
+            with h5py.File(file_path, 'r') as f:
+                data = f['tokens']
+                data = torch.Tensor(data)
+                for i in range(data.shape[0]):
+                    self.seqs.append(file_path, i)
 
     def __len__(self):
-        return len(self.h5_files)
+        return len(self.seqs)
 
     def __getitem__(self, idx):
-        file_path = self.h5_files[idx]
+        file_path = self.seqs[idx][0]
         with h5py.File(file_path, 'r') as f:
             data = f['tokens']
-            data = torch.Tensor(data)
+            data = torch.Tensor(data)[i]
+            i = self.seqs[idx][1]
         data = torch.tensor(data, dtype=torch.float32).cuda()
         return data
 

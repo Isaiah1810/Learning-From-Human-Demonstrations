@@ -105,7 +105,7 @@ class VQGAN(pl.LightningModule):
             image_size = args.resolution, image_channel=args.image_channels, norm_type=args.norm_type, 
             block=args.enc_block, window_size=args.twod_window_size, spatial_pos=args.spatial_pos,
             patch_embed = args.patch_embed, patch_size = args.patch_size, temporal_patch_size= args.temporal_patch_size, defer_temporal_pool=args.defer_temporal_pool, defer_spatial_pool=args.defer_spatial_pool,
-            spatial_depth=args.spatial_depth, temporal_depth=args.temporal_depth, causal_in_temporal_transformer=args.causal_in_temporal_transformer, causal_in_peg=args.causal_in_peg, 
+            spatial_depth=args.spatial_depth, temporal_depth=args.temporal_depth, causal_in_temporal_transformer=args.casual_in_temporal_transformer, causal_in_peg=args.casual_in_peg, 
             dim = args.embedding_dim, dim_head=args.dim_head, heads=args.heads, attn_dropout=args.attn_dropout, ff_dropout=args.ff_dropout, ff_mult=args.ff_mult,
             initialize=args.initialize_vit, sequence_length=args.sequence_length,
         )
@@ -113,7 +113,7 @@ class VQGAN(pl.LightningModule):
         self.decoder = OmniTokenizer_Decoder(
             image_size = args.resolution, image_channel=args.image_channels, norm_type=args.norm_type, block=args.dec_block, window_size=args.twod_window_size, spatial_pos=args.spatial_pos,
             patch_embed = args.patch_embed, patch_size = args.patch_size, temporal_patch_size= args.temporal_patch_size, defer_temporal_pool=args.defer_temporal_pool, defer_spatial_pool=args.defer_spatial_pool,
-            spatial_depth=len(args.dec_block), temporal_depth=args.temporal_depth, causal_in_temporal_transformer=args.causal_in_temporal_transformer, causal_in_peg=args.causal_in_peg, 
+            spatial_depth=len(args.dec_block), temporal_depth=args.temporal_depth, causal_in_temporal_transformer=args.casual_in_temporal_transformer, causal_in_peg=args.casual_in_peg, 
             dim = args.embedding_dim, dim_head=args.dim_head, heads=args.heads, attn_dropout=args.attn_dropout, ff_dropout=args.ff_dropout, ff_mult=args.ff_mult, gen_upscale=args.gen_upscale, 
             initialize=args.initialize_vit, sequence_length=args.sequence_length,
         )

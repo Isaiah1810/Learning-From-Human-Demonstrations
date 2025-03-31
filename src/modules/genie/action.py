@@ -1,5 +1,5 @@
 from typing import Tuple
-from torch import Tensor
+from torch import Tensor, int64
 import torch.nn as nn
 
 from math import prod
@@ -141,7 +141,8 @@ class LatentAction(nn.Module):
         transpose : bool = False,
     ) -> Tuple[Tuple[Tensor, Tensor], Tensor]:
         video = self.proj_in(video)
-        
+    
+
         # Encode the video frames into latent actions
         for enc in self.enc_layers:
             video = enc(video, mask=mask)
@@ -151,7 +152,7 @@ class LatentAction(nn.Module):
 
         # Quantize the latent actions
         (act, idxs), q_loss = self.quant(act, transpose=transpose)
-        
+    
         return (act, video), q_loss
     
     def decode(
@@ -180,6 +181,10 @@ class LatentAction(nn.Module):
         mask : Tensor | None = None,
     ) -> Tuple[Tensor, Tensor]:
         
+       # codebook_max = 8191
+
+       # video /= codebook_max
+
         # Encode the video frames into latent actions
         (act, enc_video), q_loss = self.encode(video, mask=mask)
         
@@ -189,8 +194,14 @@ class LatentAction(nn.Module):
         
         # Compute the reconstruction loss
         # Reconstruction loss
+
+       # recon *= codebook_max
+      #  recon = recon.to(dtype=int64)
+
         rec_loss = mse_loss(recon, video)
-        
+       
+    #    print(rec_loss, q_loss, self.quant_loss_weight)
+
         # Compute the total loss by combining the individual
         # losses, weighted by the corresponding loss weights
         loss = rec_loss\

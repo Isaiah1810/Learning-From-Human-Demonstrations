@@ -77,7 +77,7 @@ class LookupFreeQuantization(nn.Module):
         beta : float = 100.,
         transpose : bool = False
     ) -> Tuple[Tuple[Tensor, Tensor], Tensor | None]:
-        
+
         # Standardize the input tensor to have shape (batch_size, seq_len, inp_dim)
         inp = rearrange(inp, 'b d ... -> b ... d') if transpose else inp
         inp, ps = pack([inp], 'b * d')
@@ -97,7 +97,7 @@ class LookupFreeQuantization(nn.Module):
         # Use straight-through estimator to back-propagate through the quantization step
         code = (inp + (quant - inp).detach()) if self.training else quant
         code = rearrange(code, 'b n c d -> b n (c d)')
-        
+
         # Reconstruct the input tensor from the quantized values
         out = self.proj_out(code)
         out = unpack(out, ps, 'b * d')[0]
@@ -108,23 +108,31 @@ class LookupFreeQuantization(nn.Module):
         idxs = rearrange(idxs, 'b ... d -> b d ...') if transpose else idxs
         
         # No need to compute the loss if we are not training
-        if not self.training: return (out, idxs), None
-        
+        if not self.training: return (out, idxs), 0.0
+
         # Compute the entropy loss
         inp_prob = 2 * einsum(inp, self.codebook, '... i d, j d -> ... i j')
+        # Custom added prob clipping       
+     #   inp_prob = torch.clamp(inp_prob, min=-100, max=100)
+
+        #INP PROBS ARE MASSIVE, NANS SHOW UP HERE
+
         inp_prob = (inp_prob * beta).softmax(dim=-1)
         inp_prob = rearrange(inp_prob, 'b n ... -> (b n) ...')
         
         avg_prob = reduce(inp_prob, '... c d -> c d', 'mean')
         
+
         inp_ent = entropy(inp_prob).mean()
         avg_ent = entropy(avg_prob).mean()
         
+
         entropy_loss = inp_ent + self.diversity_weight * avg_ent
-        
+
         # Compute commitment loss
         commit_loss = mse_loss(inp, quant.detach(), reduction = 'mean')
-        
+       
+       
         # Compute the complete final loss
         loss = entropy_loss * self.entropy_weight + commit_loss * self.commit_weight
         

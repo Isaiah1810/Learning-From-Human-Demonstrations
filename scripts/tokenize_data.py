@@ -88,7 +88,8 @@ def tokenize_video(input_path, size, model, device, ep_len=100, sample_len=20):
     
     for i in range(seqs_per_episode):
         seq_frames = torch.stack(frames[i:i+sample_len], dim=0).to(device)
-        tokens = model.encode(seq_frames, True)
+        tokens = model.encode(seq_frames, True, True)[0]
+        tokens = tokens.reshape(tokens.shape[0], tokens.shape[1], tokens.shape[3]*tokens.shape[4]).permute(0,2,1)
         seq_tokens.append(tokens)
 
     return seq_tokens
@@ -150,7 +151,6 @@ def vqgan_tokenizer(input_path: str, output_path: str, size: int, device: str, e
     val_dirs = [os.path.join(input_path, d) for d in val_dirs if os.path.isdir(os.path.join(input_path, d))]
     test_dirs = [os.path.join(input_path, d) for d in test_dirs if os.path.isdir(os.path.join(input_path, d))]
 
-
     with torch.no_grad():
         seq = 0
         for dir_path in tqdm(train_dirs, desc="Tokenizing Training Data"):
@@ -161,6 +161,7 @@ def vqgan_tokenizer(input_path: str, output_path: str, size: int, device: str, e
                       f.create_dataset('tokens', data=tokens[i].cpu().numpy(), 
                                        compression='gzip', compression_opts=9)
 
+
         seq = 0
         for dir_path in tqdm(val_dirs, desc="Tokenizing Validation Data"):
             tokens = tokenize_video(dir_path, size, model, device, ep_len, sample_len)    
@@ -171,10 +172,10 @@ def vqgan_tokenizer(input_path: str, output_path: str, size: int, device: str, e
                                        compression='gzip', compression_opts=9)
 
         seq = 0
-        for dir_path in tqdm(val_dirs, desc="Tokenizing Validation Data"):
+        for dir_path in tqdm(test_dirs, desc="Tokenizing Test Data"):
             tokens = tokenize_video(dir_path, size, model, device, ep_len, sample_len)    
             for i in range(len(tokens)):
-                with h5py.File(os.path.join(output_path, 'validation', f'{seq}.h5'), 'w') as f:
+                with h5py.File(os.path.join(output_path, 'test', f'{seq}.h5'), 'w') as f:
                       seq += 1
                       f.create_dataset('tokens', data=tokens[i].cpu().numpy(), 
                                        compression='gzip', compression_opts=9)

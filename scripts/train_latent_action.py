@@ -2,35 +2,22 @@ import numpy as np
 import torch 
 import sys
 sys.path.append("./src/modules")
-from genie.action import LatentAction
+sys.path.append('./src/')
+from latent_action_multipatch import LatentActionModel
 from accelerate import Accelerator
-from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence
 import h5py
 import os
 import json
-
-os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1, 2, 3"
-
+from tqdm import tqdm
 
 class TokenizedSthv2(Dataset):
     def __init__(self, data_dir, dataset_name='tokens'):
         self.data_dir = data_dir
         self.dataset_name = dataset_name
-
-        self.files = []
-
-        if split_json == None:
-            self.files = os.listdir(data_dir)
-
-        self.h5_files = [os.path.join(data_dir, fname) for fname in self.files]
-        for file_path in self.h5_files:
-            with h5py.File(file_path, 'r') as f:
-                data = f['tokens']
-                data = torch.Tensor(data)
-                for i in range(data.shape[0]):
-                    self.files.append(file_path)
+        self.normalizer = Normalizer()
+        self.files = [os.path.join(data_dir, fname) for fname in os.listdir(data_dir) if fname.endswith('.h5')]
 
     def __len__(self):
         return len(self.files)
@@ -39,189 +26,208 @@ class TokenizedSthv2(Dataset):
         file_path = self.files[idx]
         with h5py.File(file_path, 'r') as f:
             data = f['tokens']
-            data = torch.Tensor(data)
-        data = torch.tensor(data, dtype=torch.float32).cuda()
-        return data
+            data = torch.Tensor(np.array(data))
+            norm_data, _, _ = self.normalizer.normalize(data)
+        return norm_data
 
 
-def collate_fn(batch):
-
-    lengths = [item.shape[0] for item in batch]  
-    padded_batch = pad_sequence(batch, batch_first=True, padding_value=0)  
+class Normalizer():
+    def __init__(self):
+        pass
+    def normalize(self, data):
+        data_min = data.min(dim=(2), keepdims=True)[0]
+        data_max = data.max(dim=(2), keepdims=True)[0]
+        data.sub_(data_min).div_(data_max - data_min + 1e-9)
+        data.mul_(2).sub_(1)
     
-    return padded_batch
+        return data, data_min, data_max
+    
+    def denormalize(self, data, min_val, max_val):
+        denorm = 0.5*(data + 1)
+        denorm = denorm * (max_val - min_val) + min_val
+        return denorm
+    
 
-ENC_BLUEPRINT = (
-    ('space-time_attn', {
-        'n_rep' : 2,
-        'n_embd' : 256,
-        'n_head' : 4,
-        'd_head' : 8,
-    }),
-    ('spacetime_downsample', {
-        'in_channels' : 256,
-        'kernel_size' : 3,
-        'time_factor' : 1,
-        'space_factor' : 2,
-    }),
-    ('space-time_attn', {
-        'n_rep' : 2,
-        'n_embd' : 256,
-        'n_head' : 4,
-        'd_head' : 8,
-    }),
-)
-
-DEC_BLUEPRINT = (
-    ('space-time_attn', {
-        'n_rep' : 2,
-        'n_embd' : 256,
-        'n_head' : 4,
-        'd_head' : 16,
-        'has_ext' : True,
-        'time_attn_kw'  : {'key_dim' : 8},
-    }),
-    ('spacetime_upsample', {
-        'in_channels' : 256,
-        'kernel_size' : 3,
-        'time_factor' : 1,
-        'space_factor' : 2,
-    }),
-    ('space-time_attn', {
-        'n_rep' : 2,
-        'n_embd' : 256,
-        'n_head' : 4,
-        'd_head' : 16,
-        'has_ext' : True,
-        'time_attn_kw'  : {'key_dim' : 8},
-    }),
-)
 
 def evaluate(model, data_loader, accelerator):
     model.eval()
     total_loss = 0
-    num_batches = len(data_loader)
 
     with torch.no_grad():
-        for batch in data_loader:
+        for batch in tqdm(data_loader, desc=f"Evaluating"):
+       
+            
+
             with accelerator.autocast():
-                loss = model(batch)
-            total_loss += loss.item()
-    
+                outputs = model({'tokens':batch})
+            loss = outputs['loss']
+            if not loss.isnan():
+                total_loss += loss.item()
+
+            else:
+                print("loss", loss)
+                print(batch.min(), batch.max(), torch.isnan(batch).any())
+                
+                 
     # Gather losses across all processes and average
-    avg_loss = accelerator.gather(total_loss)
-    avg_loss = avg_loss.mean()
+    avg_loss = total_loss / (len(data_loader) + 1e-9)
+    print(avg_loss)
     
     return avg_loss
 
 
-def train(model, train_dataloader, val_dataloader, optimizer, lr_scheduler, accelerator, writer, n_epochs):
+def train(model, train_dataloader, val_dataloader, optimizer, accelerator, 
+          n_epochs, run):
 
-    model, optimizer, train_dataloader, val_dataloader, lr_scheduler = accelerator.prepare(
-        model, optimizer, train_dataloader, val_dataloader, lr_scheduler
+    model, optimizer, train_dataloader, val_dataloader = accelerator.prepare(
+        model, optimizer, train_dataloader, val_dataloader
     )
+    
+    epoch_train_losses = np.zeros(n_epochs)
+    epoch_val_losses = np.zeros(n_epochs)
 
     for epoch in range(n_epochs):
         model.train()
         total_train_loss = 0
-        
-        for batch in train_dataloader:
+           
+        for batch in tqdm(train_dataloader, desc=f"Epoch:{epoch}"):
             optimizer.zero_grad()
             
+          #  print(type(batch))
+          #  print(batch.shape)
+
             with accelerator.autocast():
-                loss, _ = model(batch)
-            
+                outputs = model({'tokens':batch})
+          #  loss, _ = model(batch)
+            loss = outputs['loss']
             accelerator.backward(loss)
             
             accelerator.clip_grad_norm_(model.parameters(), max_norm=1.0)
             
             optimizer.step()
-            lr_scheduler.step()
             
             total_train_loss += loss.detach()
-        
-        avg_train_loss = accelerator.gather(total_train_loss).mean()
-        
+            
+          #  print("Average Batch Loss:", loss.detach())
+            
+        avg_train_loss = accelerator.gather(total_train_loss) / (len(train_dataloader) + 1e-9)
+      
+        avg_train_loss = avg_train_loss.sum() / (len(avg_train_loss))
+
+        epoch_train_losses[epoch] = avg_train_loss
+
         model.eval()
         val_loss = evaluate(model, val_dataloader, accelerator)
         
+        epoch_val_losses[epoch] = val_loss
+        
         if accelerator.is_main_process:
-            writer.add_scalar("Epoch_Loss_Avg/train", avg_train_loss, epoch)
-            writer.add_scalar("Epoch_Loss_Avg/Validation", val_loss, epoch)
+            wandb.log({
+                'validation loss': val_loss, 
+                'training_loss': avg_train_loss
+                })
+
             accelerator.print(f"Epoch [{epoch+1}/{n_epochs}], "
                               f"Training Loss: {avg_train_loss:.4f}, "
                               f"Validation Loss: {val_loss:.4f}")
-        
-        if accelerator.is_main_process:
-            accelerator.save_state(os.path.join(output_dir, f"checkpoint_epoch_{epoch}"))
+       
+        torch.cuda.empty_cache()
 
-    return avg_train_loss
+        if accelerator.is_main_process:
+
+            checkpoint_dir = os.path.join(run.config.training['output_dir']['value'], 
+                                          'checkpoints', run.id)
+            os.makedirs(checkpoint_dir, exist_ok=True)
+            checkpoint_path = os.path.join(checkpoint_dir, f"checkpoint_epoch_{epoch}.pth")
+
+            torch.save(model.state_dict(), checkpoint_path)
+            wandb.log_model(checkpoint_dir, f'{run.id}_epoch_{epoch}')
+
+    return avg_train_loss, epoch_train_losses, epoch_val_losses
 
 import argparse
 
-def get_args():
-    parser = argparse.ArgumentParser(description="Train Latent Action Model with Tokenized Data")
+# def get_args():
+#     parser = argparse.ArgumentParser(description="Train Latent Action Model with Tokenized Data")
     
-    parser.add_argument("--data_dir", type=str, required=True, help="Path to the dataset directory")
-    parser.add_argument("--labels_dir", type=str, required=True, help="Path to the labels directory")
-    parser.add_argument("--output_dir", type=str, required=False, default="./", help="Path to where outputs are saved")
-    parser.add_argument("--epochs", type=int, default=10, help="Number of epochs")
-    parser.add_argument("--batch_size", type=int, default=32, help="Batch size for training")
-    parser.add_argument("--lr", type=float, default=0.001, help="Learning rate")
+#     parser.add_argument("--data_dir", type=str, required=True, help="Path to the dataset directory")
+#     parser.add_argument("--labels_dir", type=str, required=True, help="Path to the labels directory")
+#     parser.add_argument("--output_dir", type=str, required=False, default="./", help="Path to where outputs are saved")
+#     parser.add_argument("--epochs", type=int, default=10, help="Number of epochs")
+#     parser.add_argument("--batch_size", type=int, default=32, help="Batch size for training")
+#     parser.add_argument("--lr", type=float, default=0.001, help="Learning rate")
     
-    parser.add_argument("--use_mixed_precision", action="store_true", help="Enable mixed precision")
-    parser.add_argument("--shuffle", action="store_true", help="Shuffle dataset")
-
-    parser.add_argument("--device", type=str, choices=["cpu", "cuda", "tpu"], default="cuda", help="Device for training")
+#     parser.add_argument("--shuffle", action="store_true", help="Shuffle dataset")
 
 
-    return parser.parse_args()
+    # return parser.parse_args()
 
 
 
 if __name__ == '__main__':
-    import argparse
+    # import argparse
+    import yaml
 
-    args = get_args()
+    # args = get_args()
+    torch.backends.cudnn.enabled = False
 
-    data_dir = args.data_dir
-    labels_dir = args.labels_dir
-    output_dir = args.output_dir
-    num_epochs = args.epochs
-    batch_size = args.batch_size
-    lr = args.lr
-    mixed_precision = args.use_mixed_precision
-    shuffle = args.shuffle
-    device = args.device
+    # data_dir = args.data_dir
+    # labels_dir = args.labels_dir
+    # output_dir = args.output_dir
+    # num_epochs = args.epochs
+    # batch_size = args.batch_size
+    # lr = args.lr
+    # shuffle = args.shuffle
 
-    writer = SummaryWriter()
-    accelerator = Accelerator()
+    accelerator = Accelerator(device_placement=True, mixed_precision='fp16')
 
-    model = LatentAction(
-        enc_desc = ENC_BLUEPRINT,
-        dec_desc = DEC_BLUEPRINT,
-        d_codebook=8,      
-        inp_channels=1,     
-        inp_shape=(32, 32), 
-        n_embd=256, 
+    print(f"Using {accelerator.device} GPUs.")
+    print(f"Current Device: {torch.cuda.current_device()}")
+    print(f"Device Name: {torch.cuda.get_device_name(torch.cuda.current_device())}")
+
+
+    with open("config.yaml", "r") as file:
+        config = yaml.safe_load(file)
+
+    if accelerator.is_main_process:
+        import wandb
+        wandb.login()
+        run = wandb.init(
+            project='lfhd_latent_action',
+            config=config
+        )
+    else:
+        run = None
+
+    model = LatentActionModel(
+        in_dim=config['model']['in_dim']['value'],  # Patch dimension     
+        model_dim=config['model']['model_dim']['value'],             
+        latent_dim=config['model']['latent_dim']['value'],                           
+        enc_blocks=config['model']['enc_blocks']['value'],                             
+        dec_blocks=config['model']['dec_blocks']['value'],                            
+        num_heads=config['model']['num_heads']['value'],                     
+        dropout=config['model']['dropout']['value']
     )
 
-    train_data = DataLoader(TokenizedSthv2(os.path.join(data_dir, 'train')), batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn)
-    val_data = DataLoader(TokenizedSthv2(os.path.join(data_dir, 'validation')),batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn)
-    test_data = DataLoader(TokenizedSthv2(os.path.join(data_dir, 'test')),batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn)
+    data_dir = config['training']['data_dir']['value']
+    batch_size = config['training']['batch_size']['value']
+    num_epochs = config['training']['epochs']['value']
+    lr = config['training']['learning_rate']['value']
+    shuffle = config['training']['shuffle']['value']
+    output_dir = config['training']['output_dir']['value']
+
+    train_data = DataLoader(TokenizedSthv2(os.path.join(data_dir, 'train')), batch_size=batch_size, shuffle=shuffle)
+    val_data = DataLoader(TokenizedSthv2(os.path.join(data_dir, 'validation')),batch_size=batch_size, shuffle=shuffle)
+    test_data = DataLoader(TokenizedSthv2(os.path.join(data_dir, 'test')),batch_size=batch_size, shuffle=shuffle)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
-    model, optimizer, data = accelerator.prepare(model, optimizer, train_data)
+    model, optimizer, train_data, val_data, test_data = accelerator.prepare(model, optimizer, train_data, val_data, test_data)
 
     model.train()
 
-    train_loss_avg = train(model, train_data, val_data, optimizer, accelerator, writer, num_epochs)
+    train_loss_avg, train_losses, val_losses = train(model, train_data, val_data, optimizer, accelerator, num_epochs, run)
 
-    print(f"Final Average Training Loss: {train_loss_avg}")
+    
 
-    test_loss_avg = evaluate(model, test_data, accelerator)
-
-    print(f"Average Test Loss: {test_loss_avg}")
-
-    torch.save(model.state_dict(), os.path.join(output_dir, f'lr{lr}-bs{batch_size}epochs-{num_epochs}.pth'))
+   # torch.save(model.state_dict(), os.path.join(output_dir, f'lr{lr}-bs{batch_size}epochs-{num_epochs}.pth'))

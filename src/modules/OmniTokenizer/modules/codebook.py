@@ -145,3 +145,24 @@ class Codebook(nn.Module):
     def dictionary_lookup(self, encodings):
         embeddings = F.embedding(encodings, self.embeddings)
         return embeddings
+
+
+    def embeddings_to_encodings(self, embeddings):
+        """Convert embeddings back to codebook indices"""
+        # embeddings: [b, c, t, h, w]
+        
+        # Use the same flattening approach as in the forward method
+        flat_embeddings = shift_dim(embeddings, 1, -1).flatten(end_dim=-2)  # [bthw, c]
+        
+        # Calculate distances using the exact same formula as in forward
+        distances = (flat_embeddings ** 2).sum(dim=1, keepdim=True) \
+                    - 2 * flat_embeddings @ self.embeddings.t() \
+                    + (self.embeddings.t() ** 2).sum(dim=0, keepdim=True)  # [bthw, n_codes]
+        
+        # Get indices of minimum distances
+        encoding_indices = torch.argmin(distances, dim=1)  # [bthw]
+        
+        # Reshape to match the input shape (excluding the channel dimension)
+        encoding_indices = encoding_indices.view(embeddings.shape[0], *embeddings.shape[2:])  # [b, t, h, w]
+        
+        return encoding_indices

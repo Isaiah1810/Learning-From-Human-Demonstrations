@@ -118,8 +118,11 @@ class LatentActionModel(nn.Module):
         # Project input tokens and latent representation
         video_tokens = self.input_up(outputs["tokens"][:, :-1])
         action_tokens = self.action_up(outputs["z_rep"])
+        print('abc:',video_tokens.shape, action_tokens.shape)
         video_action_tokens = video_tokens + action_tokens
-        
+        #video_action_tokens = action_tokens
+
+
         #del outputs["tokens"]
         
         # Decode

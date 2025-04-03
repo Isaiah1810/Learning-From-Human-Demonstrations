@@ -227,6 +227,8 @@ class RotaryEmbedding(Module):
         should_cache = self.cache_if_possible and not self.learned_freq and exists(
             seq_len) and self.freqs_for != "pixel" and (offset + seq_len) <= self.cache_max_seq_len
 
+        should_cache = False
+
         if should_cache and exists(self.cached_freqs) and (offset + seq_len) <= self.cached_freqs_seq_len.item():
             return self.cached_freqs[offset: (offset + seq_len)].detach()
         else:

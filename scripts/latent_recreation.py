@@ -5,7 +5,7 @@ sys.path.append("./src/modules")
 sys.path.append('./src')
 from PIL import Image
 from accelerate import Accelerator
-from latent_action_multipatch import LatentActionModel
+from latent_action import LatentActionModel
 import h5py
 import os
 
@@ -31,18 +31,79 @@ class Normalizer():
         denorm = denorm * (max_val[1:] - min_val[1:]) + min_val[1:]
         return denorm
     
+
+import cv2
+import imageio
+
+def animate_trajectories(orig_trajectory, pred_trajectory, path='./traj_anim.gif', duration=4 / 50, rec_to_pred_t=10,
+                         title=None):
+    # rec_to_pred_t: the timestep from which prediction transitions from reconstruction to generation
+    # prepare images
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    origin = (5, 15)
+    fontScale = 0.4
+    color = (255, 255, 255)
+    gt_border_color = (255, 0, 0)
+    rec_border_color = (0, 0, 255)
+    gen_border_color = (0, 255, 0)
+    border_size = 2
+    thickness = 1
+    gt_traj_prep = []
+    pred_traj_prep = []
+    for i in range(orig_trajectory.shape[0]):
+        image = (orig_trajectory[i] * 255).astype(np.uint8).copy()
+        image = cv2.putText(image, f'GT:{i}', origin, font, fontScale, color, thickness, cv2.LINE_AA)
+        # add border
+        image = cv2.copyMakeBorder(image, border_size, border_size, border_size, border_size, cv2.BORDER_CONSTANT,
+                                   value=gt_border_color)
+        gt_traj_prep.append(image)
+
+        text = f'REC:{i}' if i < rec_to_pred_t else f'PRED:{i}'
+        image = (pred_trajectory[i].clip(0, 1) * 255).astype(np.uint8).copy()
+        image = cv2.putText(image, text, origin, font, fontScale, color, thickness, cv2.LINE_AA)
+        # add border
+        border_color = rec_border_color if i < rec_to_pred_t else gen_border_color
+        image = cv2.copyMakeBorder(image, border_size, border_size, border_size, border_size, cv2.BORDER_CONSTANT,
+                                   value=border_color)
+        pred_traj_prep.append(image)
+
+    total_images = []
+    for i in range(len(orig_trajectory)):
+        white_border = (np.ones((gt_traj_prep[i].shape[0], 4, gt_traj_prep[i].shape[-1])) * 255).astype(np.uint8)
+        concat_img = np.concatenate([gt_traj_prep[i],
+                                     white_border,
+                                     pred_traj_prep[i]], axis=1)
+        if title is not None:
+            text_color = (0, 0, 0)
+            fontScale = 0.25
+            thickness = 1
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            h = 25
+            w = concat_img.shape[1]
+            text_plate = (np.ones((h, w, 3)) * 255).astype(np.uint8)
+            w_orig = orig_trajectory.shape[1] // 2
+            origin = (w_orig // 6, h // 2)
+            text_plate = cv2.putText(text_plate, title, origin, font, fontScale, text_color, thickness,
+                                     cv2.LINE_AA)
+            concat_img = np.concatenate([text_plate, concat_img], axis=0)
+        # total_images.append((concat_img * 255).astype(np.uint8))
+        total_images.append(concat_img)
+    imageio.mimsave(path, total_images, duration=duration, loop=0)  # 1/50
+
+
+
 if __name__ == '__main__':
     model = LatentActionModel(
         in_dim=8,        # Patch dimension      
         model_dim=64,              
-        latent_dim=16,                        
+        latent_dim=7,                        
         enc_blocks=2,                          
         dec_blocks=2,                         
         num_heads=8,                      
         dropout=0.2                                      
     )
     
-    checkpoint_path = './models/checkpoint_epoch_1_multipatch.pth'
+    checkpoint_path = './models/global_7dim_64_latent.pth'
     state_dict = torch.load(checkpoint_path, map_location="cuda:0")
     new_state_dict = {}
     for key, value in state_dict.items():
@@ -60,14 +121,17 @@ if __name__ == '__main__':
 
     imgs = []
 
-    for path in os.listdir(data_dir):
+    orig_images = []
+
+    for path in os.listdir(data_dir)[::3]:
         img = Image.open(os.path.join(data_dir, path))
         img = img.resize((128, 128))
         inp = torch.tensor(np.array(img).transpose(2, 1, 0).reshape((1, 3, 128, 128)), dtype=torch.float32)
+        orig_images.append(inp / 255)
         inp = 2 * (inp / 255) - 1
         imgs.append(inp)
 
-    inp = torch.concatenate(imgs, dim=0)[30:50]
+    inp = torch.concatenate(imgs, dim=0)[:20]
    # print(inp.shape)
     inp = inp.cuda()
     vqgan.eval()
@@ -125,14 +189,16 @@ if __name__ == '__main__':
     recons_vids = recons_vids.detach().cpu().numpy()
 
     images = []
-
     for i in range(recons_vids.shape[0]):
-        img_rec = (((recons_vids[i] + 1)/2)*255).astype(np.uint8).transpose(2, 1, 0)
-        img_rec = Image.fromarray(img_rec)
+        img_rec = (((recons_vids[i] + 1)/2)).transpose(2, 1, 0)
         images.append(img_rec)
-        # img_rec.save(f"reconstructions/{i+1}.jpg")
+       # img_rec.save(f"reconstructions/{i+1}.jpg")
 
-    print(len(images))
+    orig_images = np.concatenate(orig_images[1:20]).transpose((0,3,2,1))
+    images = np.array(images)
 
-    images[0].save('reconstruction.gif', save_all=True, append_images=images[1:], duration=120, loop=0)
-    
+    print(orig_images.shape, images.shape)
+
+
+    animate_trajectories(orig_images, images, duration=3)
+

@@ -72,10 +72,11 @@ class LatentActionModel(nn.Module):
         action_pad = self.action_prompt.expand(B, T, -1)
         padded_tokens = torch.cat([action_pad.unsqueeze(2), tokens], dim=2)
         
+        print("paadded", padded_tokens.shape)
+
         # Encode
         z = self.encoder(padded_tokens)  # (B, T, 1+WxH, E)
         
-        # Get latent action for all future frames
         z = z[:, 1:, 0]  # (B, T-1, E)
         
         # VAE
@@ -112,7 +113,7 @@ class LatentActionModel(nn.Module):
         video_tokens = self.input_up(outputs["tokens"][:, :-1])
         action_tokens = self.action_up(outputs["z_rep"])
         video_action_tokens = video_tokens + action_tokens
-        
+        #video_action_tokens = action_tokens
         #del outputs["tokens"]
         
         # Decode

@@ -13,23 +13,33 @@ import json
 from tqdm import tqdm
 
 class TokenizedSthv2(Dataset):
-    def __init__(self, data_dir, dataset_name='tokens'):
+    def __init__(self, data_dir, dataset_name='tokens', max_skip=3):
         self.data_dir = data_dir
         self.dataset_name = dataset_name
         self.normalizer = Normalizer()
         self.files = [os.path.join(data_dir, fname) for fname in os.listdir(data_dir) if fname.endswith('.h5')]
+        self.max_skip = max_skip 
+        self.training = 'train' in data_dir 
 
     def __len__(self):
         return len(self.files)
 
     def __getitem__(self, idx):
         file_path = self.files[idx]
+        
+        skip = np.random.randint(0, self.max_skip + 1) if self.training else 0
+        
         with h5py.File(file_path, 'r') as f:
             data = f['tokens']
-            data = torch.Tensor(np.array(data))
+            data = np.array(data)
+            
+            if skip > 0:
+                data = data[::skip+1] 
+            
+            data = torch.Tensor(data)
             norm_data, _, _ = self.normalizer.normalize(data)
-        return norm_data
-
+            
+        return norm_data 
 
 class Normalizer():
     def __init__(self):
@@ -47,6 +57,11 @@ class Normalizer():
         denorm = denorm * (max_val - min_val) + min_val
         return denorm
     
+
+def variable_collate_fn(batch):
+    padded_data = pad_sequence(batch, batch_first=True, padding_value=0.0)
+    
+    return padded_data
 
 
 def evaluate(model, data_loader, accelerator):
@@ -147,37 +162,12 @@ def train(model, train_dataloader, val_dataloader, optimizer, accelerator,
 
 import argparse
 
-# def get_args():
-#     parser = argparse.ArgumentParser(description="Train Latent Action Model with Tokenized Data")
-    
-#     parser.add_argument("--data_dir", type=str, required=True, help="Path to the dataset directory")
-#     parser.add_argument("--labels_dir", type=str, required=True, help="Path to the labels directory")
-#     parser.add_argument("--output_dir", type=str, required=False, default="./", help="Path to where outputs are saved")
-#     parser.add_argument("--epochs", type=int, default=10, help="Number of epochs")
-#     parser.add_argument("--batch_size", type=int, default=32, help="Batch size for training")
-#     parser.add_argument("--lr", type=float, default=0.001, help="Learning rate")
-    
-#     parser.add_argument("--shuffle", action="store_true", help="Shuffle dataset")
-
-
-    # return parser.parse_args()
-
-
 
 if __name__ == '__main__':
     # import argparse
     import yaml
 
-    # args = get_args()
     torch.backends.cudnn.enabled = False
-
-    # data_dir = args.data_dir
-    # labels_dir = args.labels_dir
-    # output_dir = args.output_dir
-    # num_epochs = args.epochs
-    # batch_size = args.batch_size
-    # lr = args.lr
-    # shuffle = args.shuffle
 
     accelerator = Accelerator(device_placement=True, mixed_precision='fp16')
 
@@ -216,9 +206,9 @@ if __name__ == '__main__':
     shuffle = config['training']['shuffle']['value']
     output_dir = config['training']['output_dir']['value']
 
-    train_data = DataLoader(TokenizedSthv2(os.path.join(data_dir, 'train')), batch_size=batch_size, shuffle=shuffle)
-    val_data = DataLoader(TokenizedSthv2(os.path.join(data_dir, 'validation')),batch_size=batch_size, shuffle=shuffle)
-    test_data = DataLoader(TokenizedSthv2(os.path.join(data_dir, 'test')),batch_size=batch_size, shuffle=shuffle)
+    train_data = DataLoader(TokenizedSthv2(os.path.join(data_dir, 'train')), batch_size=batch_size, shuffle=shuffle, colate_fn=variable_collate_fn)
+    val_data = DataLoader(TokenizedSthv2(os.path.join(data_dir, 'validation')),batch_size=batch_size, shuffle=shuffle, colate_fn=variable_collate_fn)
+    test_data = DataLoader(TokenizedSthv2(os.path.join(data_dir, 'test')),batch_size=batch_size, shuffle=shuffle, colate_fn=variable_collate_fn)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
@@ -228,6 +218,3 @@ if __name__ == '__main__':
 
     train_loss_avg, train_losses, val_losses = train(model, train_data, val_data, optimizer, accelerator, num_epochs, run)
 
-    
-
-   # torch.save(model.state_dict(), os.path.join(output_dir, f'lr{lr}-bs{batch_size}epochs-{num_epochs}.pth'))

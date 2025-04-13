@@ -1,0 +1,63 @@
+model:
+  # === Input / Output dims ===
+  input_dim: 128          # Dimension of video token input
+  model_dim: 256          # Internal transformer model dimension
+  action_dim: 16          # Output action vector dimension per token
+
+  # === Transformer architecture ===
+  encoder_depth: 4
+  decoder_depth: 4
+  heads: 8
+  dim_head: 64
+  ff_mult: 4              # Feedforward expansion multiplier
+  mlp_hidden_dim: 2048    # For input/output MLPs if used
+
+  # === Dropout settings ===
+  attn_dropout: 0.1
+  ff_dropout: 0.1
+
+  # === Positional embeddings ===
+  use_rel_pos_spatial: true
+  use_rel_pos_temporal: false        # Disable: we’re using PEG instead
+
+  # PEG applied to all temporal layers (0 through depth - 1)
+  use_peg_spatial_layers_enc: []      # No spatial PEG
+  use_peg_temporal_layers_enc: [0, 1, 2, 3]
+
+  use_peg_spatial_layers_dec: []      # No spatial PEG
+  use_peg_temporal_layers_dec: [0, 1, 2, 3]
+
+  # === Attention extras ===
+  attn_num_null_kv: 2     # Number of learned null key-value pairs
+
+
+
+train:
+  # === Training schedule ===
+  loss_type: "l1"          # "l2", "l1"
+  num_train_steps: 200000
+  batch_size: 2
+  grad_accum_every: 1
+  lr: 0.0001
+  max_grad_norm: 1.0  # e.g. 0.5 for gradient clipping
+
+  # === Checkpointing ===
+  save_model_every: 1000          # interval to overwrite the running checkpoint
+  save_milestone_every: 25000     # interval to save unique milestone checkpoints
+  checkpoint: null                # if null, auto-detect latest running checkpoint on resume
+  use_ema: false                  # enable EMA for the model if true
+  milestone_optim: false          # if true, save optimizers at milestones
+
+  # === Dataset ===
+  dataset_size: 10000
+  frames: 8
+
+  # === Logging & Output ===
+  results_folder: "./results/run1"
+
+  # === Weights & Biases ===
+  wandb_mode: "disabled"          # 'disabled', 'online', or 'offline'
+  wandb_project: "video-action"
+  run_id: null                    # used for resume logic across preemptions
+  project_name: "video-action"
+

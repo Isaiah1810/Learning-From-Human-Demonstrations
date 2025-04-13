@@ -108,6 +108,21 @@ class SequenceTokenizer():
 
         return gt_embeddings, actions, recons_vids
 
+
+    def extract_actions(self, gt_embeddings):
+
+        data = gt_embeddings
+
+        data, min_val, max_val = self._normalize(data)
+ 
+        data = data.unsqueeze(0).to(self.device)
+
+        outputs = self.latent_action({'tokens': data})
+
+        actions = outputs['z_rep'].squeeze(2)
+
+        return actions
+
     def _normalize(self, data):
         data_min = data.min(dim=(2), keepdims=True)[0]
         data_max = data.max(dim=(2), keepdims=True)[0]

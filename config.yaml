@@ -2,9 +2,9 @@ model:
   in_dim:
     value: 8
   model_dim:
-    value: 256
+    value: 128
   latent_dim:
-    value: 16
+    value: 7
   enc_blocks:
     value: 2
   dec_blocks:
@@ -13,15 +13,3 @@ model:
     value: 8
   dropout:
     value: 0.2
-
-training:
-  batch_size:
-    value: 4
-  epochs:
-    value: 10
-  learning_rate:
-    value: 0.0001
-  shuffle:
-    value: True
-  data_dir:
-    value: /scratch/iew/sthv2/tokens/vqgan/

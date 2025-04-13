@@ -4,10 +4,11 @@ from sequence_tokenizer import SequenceTokenizer
 import os
 import numpy as np
 import h5py
+from PIL import Image
 
 class VideoDataset(Dataset):
     def __init__(self, data_dir, embed_model_path, la_path, la_config_path, 
-                 sequence_len=20, is_embedded=True, frame_skip=True, skip_max=3, 
+                 sequence_len=20, is_embedded=True, skip_max=3, 
                  width=16, height=16, input_dim=8, action_dim=7):
         
         self.tokenizer = SequenceTokenizer(embed_model_path, la_path, la_config_path)
@@ -42,8 +43,18 @@ class VideoDataset(Dataset):
                 norm_data, _, _ = self._normalize(data)
 
         else:
-            # Embed Sequence
-            raise NotImplementedError
+            imgs = []
+            num_frames = min(len(os.listdir(file_path)), self.sequence_len)
+            for file in os.listdir(file_path)[:num_frames]:
+                img = Image.open(os.path.join(file_path, file))
+                img = img.resize((128, 128))
+                inp = torch.tensor(np.array(img).transpose(2, 1, 0).reshape((1, 3, 128, 128)), dtype=torch.float32)
+                inp = 2 * (inp / 255) - 1
+                imgs.append(inp)
+
+            sequence = torch.concatenate(imgs, dim=0)
+            data = self.tokenizer.encode(sequence, False, False)
+            norm_data, _, _ = self._normalize(data)
 
         V = norm_data[::skip_V+1]
         S = norm_data[::skip_S+1]
@@ -71,10 +82,14 @@ class VideoDataset(Dataset):
             S = torch.cat((S, padding), dim=0)
 
         A = self.tokenizer.extract_actions(S)
+        A = A.reshape((self.sequence_len-1, 1, 1, self.action_dim))
 
-        V = V.reshape((V.shape[0], self.height, self.width, self.input_dim))
+        V = V.reshape((self.sequence_len, self.height, self.width, self.input_dim))
 
-        S = S.reshape((S.shape[0], self.height, self.width, self.input_dim))
+        S = S.reshape((self.sequence_len, self.height, self.width, self.input_dim))
+
+        action_padding = torch.zeros((1, 1, 1, self.action_dim))
+        A = torch.cat((action_padding, A), dim=0)
 
         padding_mask_V = torch.zeros(self.sequence_len, dtype=torch.bool)
         padding_mask_SA = torch.zeros(self.sequence_len, dtype=torch.bool)

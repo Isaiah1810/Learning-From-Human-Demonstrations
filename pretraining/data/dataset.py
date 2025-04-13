@@ -5,13 +5,20 @@ import os
 import numpy as np
 import h5py
 from PIL import Image
+import yaml
 
 class VideoDataset(Dataset):
-    def __init__(self, data_dir, embed_model_path, la_path, la_config_path, 
-                 sequence_len=20, is_embedded=True, skip_max=3, 
+    def __init__(self, config_path, sequence_len=20, is_embedded=True, skip_max=3, 
                  width=16, height=16, input_dim=8, action_dim=7):
         
-        self.tokenizer = SequenceTokenizer(embed_model_path, la_path, la_config_path)
+        with open(config_path, "r") as file:
+                self.config = yaml.safe_load(file)
+
+        data_dir = self.config['dataset']['data_dir']
+        embed_model_path = self.config['dataset']['embed_model_path']
+        la_path = self.config['dataset']['la_path']
+
+        self.tokenizer = SequenceTokenizer(embed_model_path, la_path, config_path)
         self.sequence_len = sequence_len
         self.is_embedded = is_embedded
         self.skip_max = skip_max
@@ -88,13 +95,13 @@ class VideoDataset(Dataset):
 
         S = S.reshape((self.sequence_len, self.height, self.width, self.input_dim))
 
-        action_padding = torch.zeros((1, 1, 1, self.action_dim))
+        action_padding = torch.zeros((1, 1, 1, self.action_dim)).to(self.tokenizer.device)
         A = torch.cat((action_padding, A), dim=0)
 
         padding_mask_V = torch.zeros(self.sequence_len, dtype=torch.bool)
         padding_mask_SA = torch.zeros(self.sequence_len, dtype=torch.bool)
-        padding_mask_V[:V_pad_len] = True
-        padding_mask_SA[:S_pad_len] = True
+        padding_mask_V[:self.sequence_len - V_pad_len] = True
+        padding_mask_SA[:self.sequence_len - S_pad_len] = True
 
         return V, S, A, padding_mask_V, padding_mask_SA
 

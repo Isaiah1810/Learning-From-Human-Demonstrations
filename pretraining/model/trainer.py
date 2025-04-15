@@ -41,7 +41,6 @@ class VideoActionTrainer(nn.Module):
             resume_checkpoint: Optional[str] = None,
             milestone_optim: bool = True,
             wandb_kwargs: dict = {},
-            d_config_path = None
         ):
             super().__init__()
 
@@ -52,23 +51,6 @@ class VideoActionTrainer(nn.Module):
                 config=wandb_kwargs.get("config"),
                 init_kwargs={"wandb": wandb_kwargs}
             )
-
-            # prepare tokenizer
-            if self.accelerator.is_main_process:
-
-                import yaml
-                with open(d_config_path, 'r') as f:
-                    d_config = yaml.safe_load(f)
-
-                embed_model_path = d_config['dataset']['embed_model_path']
-                la_path = d_config['dataset']['la_path']
-                tokenizer = SequenceTokenizer(embed_model_path, la_path, d_config_path)
-            else:
-                tokenizer = None
-
-            self.accelerator.prepare_model(tokenizer)
-
-            dataset.tokenizer = tokenizer
 
             # prepare everything together
             self.model = model

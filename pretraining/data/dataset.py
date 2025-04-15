@@ -103,6 +103,10 @@ class VideoDataset(Dataset):
         padding_mask_V[:self.sequence_len - V_pad_len] = True
         padding_mask_SA[:self.sequence_len - S_pad_len] = True
 
+        V = V.detach().cpu()
+        S = S.detach().cpu()
+        A = A.detach().requires_grad_(False).cpu()
+
         return V, S, A, padding_mask_V, padding_mask_SA
 
 

@@ -51,6 +51,7 @@ train:
   # === Dataset ===
   dataset_size: 10000
   frames: 8
+  dataset_config: "./configs/dataset_config.yaml"
 
   # === Logging & Output ===
   results_folder: "./results/run1"

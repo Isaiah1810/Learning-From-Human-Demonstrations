@@ -1,7 +1,7 @@
 import yaml
 from pathlib import Path
 import argparse
-from data.video_dataset import DummyVideoActionDataset
+from data.dataset import VideoDataset
 from model.action_predictor import VideoToAction
 from model.trainer import VideoActionTrainer
 import wandb
@@ -45,12 +45,8 @@ def main():
     config['train']['run_id'] = wandb_id
 
     # Dataset
-    dataset = DummyVideoActionDataset(
-        size=train_cfg['dataset_size'],
-        input_dim=model_cfg['input_dim'],
-        action_dim=model_cfg['action_dim'],
-        frames=train_cfg['frames']
-    )
+    d_config_path = config['train']['dataset_config']
+    dataset = VideoDataset(d_config_path)
 
     # Model
     model = VideoToAction(
@@ -90,7 +86,8 @@ def main():
         milestone_optim=train_cfg.get('milestone_optim', True),
         accelerator_kwargs=dict(log_with="wandb"),
         resume_checkpoint=str(resume_ckpt_path) if resume_ckpt_path else None,
-        wandb_kwargs=wandb_kwargs
+        wandb_kwargs=wandb_kwargs,
+        d_config_path = d_config_path
     )
 
     trainer.train()

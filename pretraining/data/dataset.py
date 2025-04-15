@@ -8,8 +8,9 @@ from PIL import Image
 import yaml
 
 class VideoDataset(Dataset):
-    def __init__(self, config_path, sequence_len=20, is_embedded=True, skip_max=3, 
-                 width=16, height=16, input_dim=8, action_dim=7):
+    def __init__(self, config_path, tokenizer=None, sequence_len=20, 
+                 is_embedded=True, skip_max=3, width=16, height=16, input_dim=8, 
+                 action_dim=7):
         
         with open(config_path, "r") as file:
                 self.config = yaml.safe_load(file)
@@ -17,8 +18,13 @@ class VideoDataset(Dataset):
         data_dir = self.config['dataset']['data_dir']
         embed_model_path = self.config['dataset']['embed_model_path']
         la_path = self.config['dataset']['la_path']
+        
+        if tokenizer is not None:
+            self.tokenizer = tokenizer
+        # else:
+        #     self.tokenizer = SequenceTokenizer(embed_model_path, la_path, config_path)
+        #     print("WARNING: Creating New Tokenizer Instance in Dataset is slow for distributed training")
 
-        self.tokenizer = SequenceTokenizer(embed_model_path, la_path, config_path)
         self.sequence_len = sequence_len
         self.is_embedded = is_embedded
         self.skip_max = skip_max

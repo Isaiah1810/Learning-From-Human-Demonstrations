@@ -5,7 +5,9 @@ from data.dataset import VideoDataset
 from model.action_predictor import VideoToAction
 from model.trainer import VideoActionTrainer
 import wandb
+import torch.multiprocessing as mp
 
+mp.set_start_method('spawn', force=True)
 
 def load_config(path):
     with open(path, 'r') as f:
@@ -87,7 +89,6 @@ def main():
         accelerator_kwargs=dict(log_with="wandb"),
         resume_checkpoint=str(resume_ckpt_path) if resume_ckpt_path else None,
         wandb_kwargs=wandb_kwargs,
-        d_config_path = d_config_path
     )
 
     trainer.train()

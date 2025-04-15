@@ -21,9 +21,9 @@ class VideoDataset(Dataset):
         
         if tokenizer is not None:
             self.tokenizer = tokenizer
-        # else:
-        #     self.tokenizer = SequenceTokenizer(embed_model_path, la_path, config_path)
-        #     print("WARNING: Creating New Tokenizer Instance in Dataset is slow for distributed training")
+        else:
+            self.tokenizer = SequenceTokenizer(embed_model_path, la_path, config_path)
+            print("WARNING: Creating New Tokenizer Instance in Dataset is slow for distributed training")
 
         self.sequence_len = sequence_len
         self.is_embedded = is_embedded
@@ -103,6 +103,7 @@ class VideoDataset(Dataset):
 
         action_padding = torch.zeros((1, 1, 1, self.action_dim)).to(self.tokenizer.device)
         A = torch.cat((action_padding, A), dim=0)
+        A = A.expand(self.sequence_len, self.height, self.width, self.action_dim)
 
         padding_mask_V = torch.zeros(self.sequence_len, dtype=torch.bool)
         padding_mask_SA = torch.zeros(self.sequence_len, dtype=torch.bool)

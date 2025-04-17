@@ -1,7 +1,6 @@
 import yaml
 from pathlib import Path
 import argparse
-from data.dataset import VideoDataset
 from model.action_predictor import VideoToAction
 from model.trainer import VideoActionTrainer
 import wandb
@@ -46,9 +45,8 @@ def main():
     }
     config['train']['run_id'] = wandb_id
 
-    # Dataset
+    # Dataset Config
     d_config_path = config['train']['dataset_config']
-    dataset = VideoDataset(d_config_path)
 
     # Model
     model = VideoToAction(
@@ -75,7 +73,7 @@ def main():
     # Trainer
     trainer = VideoActionTrainer(
         model=model,
-        dataset=dataset,
+     #   dataset=dataset,
         batch_size=train_cfg['batch_size'],
         num_train_steps=train_cfg['num_train_steps'],
         results_folder=str(results_folder),

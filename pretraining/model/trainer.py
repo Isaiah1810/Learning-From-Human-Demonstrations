@@ -8,6 +8,8 @@ from pathlib import Path
 from beartype import beartype
 from .action_predictor import VideoToAction
 from sequence_tokenizer import SequenceTokenizer
+from data.dataset import VideoDataset
+import yaml
 
 def cycle(dl, skipped_dl=None):
     """
@@ -27,7 +29,7 @@ class VideoActionTrainer(nn.Module):
     def __init__(
             self,
             model: VideoToAction,
-            dataset: torch.utils.data.Dataset,
+         #   dataset: torch.utils.data.Dataset,
             batch_size: int,
             num_train_steps: int,
             results_folder: str,
@@ -41,6 +43,7 @@ class VideoActionTrainer(nn.Module):
             resume_checkpoint: Optional[str] = None,
             milestone_optim: bool = True,
             wandb_kwargs: dict = {},
+            d_config_path: str = './configs/dataset_config.yaml'
         ):
             super().__init__()
 
@@ -51,6 +54,19 @@ class VideoActionTrainer(nn.Module):
                 config=wandb_kwargs.get("config"),
                 init_kwargs={"wandb": wandb_kwargs}
             )
+
+            with open(d_config_path, 'r') as f:
+                d_config = yaml.safe_load(f)
+
+            tokenizer = SequenceTokenizer(
+                vqgan_path=d_config['dataset']['embed_model_path'],
+                latent_action_path=['dataset']['la_path'],
+                config_path=d_config_path,
+                accelerator=self.accelerator
+            )
+
+            dataset = VideoDataset(d_config_path, tokenizer, 
+                                        accelerator=self.accelerator)
 
             # prepare everything together
             self.model = model

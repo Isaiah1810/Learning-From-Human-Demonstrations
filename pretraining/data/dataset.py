@@ -6,11 +6,16 @@ import numpy as np
 import h5py
 from PIL import Image
 import yaml
+from accelerate import Accelerator
+
 
 class VideoDataset(Dataset):
     def __init__(self, config_path, tokenizer=None, sequence_len=20, 
                  is_embedded=True, skip_max=3, width=16, height=16, input_dim=8, 
-                 action_dim=7):
+                 action_dim=7, accelerator=None):
+        
+        # Store accelerator instance
+        self.accelerator = accelerator or Accelerator()
         
         with open(config_path, "r") as file:
                 self.config = yaml.safe_load(file)
@@ -22,8 +27,10 @@ class VideoDataset(Dataset):
         if tokenizer is not None:
             self.tokenizer = tokenizer
         else:
-            self.tokenizer = SequenceTokenizer(embed_model_path, la_path, config_path)
-            print("WARNING: Creating New Tokenizer Instance in Dataset is slow for distributed training")
+            # Pass accelerator to tokenizer
+            self.tokenizer = SequenceTokenizer(embed_model_path, la_path, config_path, accelerator=self.accelerator)
+            if self.accelerator.is_main_process:
+                print("WARNING: Creating New Tokenizer Instance in Dataset is slow for distributed training")
 
         self.sequence_len = sequence_len
         self.is_embedded = is_embedded
@@ -40,15 +47,19 @@ class VideoDataset(Dataset):
         return len(self.files)
     
     def __getitem__(self, idx):
+        # Calculate effective index for distributed training
+        if hasattr(self.accelerator, 'split_batches') and self.accelerator.split_batches:
+            # Adjust index based on process if needed
+            effective_idx = idx
+        else:
+            effective_idx = idx
 
         skip_V = np.random.randint(0, self.skip_max + 1)
         skip_S = np.random.randint(0, self.skip_max + 1)
 
-
-        file_path = self.files[idx]
+        file_path = self.files[effective_idx]
     
         if self.is_embedded:
-
             with h5py.File(file_path, 'r') as f:
                 data = f['tokens']
                 data = np.array(data)
@@ -101,7 +112,8 @@ class VideoDataset(Dataset):
 
         S = S.reshape((self.sequence_len, self.height, self.width, self.input_dim))
 
-        action_padding = torch.zeros((1, 1, 1, self.action_dim)).to(self.tokenizer.device)
+        # Note: Here we're using accelerator device
+        action_padding = torch.zeros((1, 1, 1, self.action_dim)).to(self.accelerator.device)
         A = torch.cat((action_padding, A), dim=0)
         A = A.expand(self.sequence_len, self.height, self.width, self.action_dim)
 
@@ -110,6 +122,8 @@ class VideoDataset(Dataset):
         padding_mask_V[:self.sequence_len - V_pad_len] = True
         padding_mask_SA[:self.sequence_len - S_pad_len] = True
 
+        # Detach and move to CPU before returning
+        # This is important for Accelerate to handle the data properly later
         V = V.detach().cpu()
         S = S.detach().cpu()
         A = A.detach().requires_grad_(False).cpu()

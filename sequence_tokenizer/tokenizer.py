@@ -1,4 +1,3 @@
-
 import warnings
 
 with warnings.catch_warnings():
@@ -13,31 +12,33 @@ with warnings.catch_warnings():
     from .src.latent_action import LatentActionModel
     import os
     import yaml
-
+    from accelerate import Accelerator
 
 
 class SequenceTokenizer(torch.nn.Module):
-    def __init__(self, vqgan_path=None, latent_action_path=None, config_path='config.yaml'):
+    def __init__(self, vqgan_path=None, latent_action_path=None, config_path='config.yaml', accelerator=None):
         super().__init__()
+        
+        # Store accelerator instance
+        self.accelerator = accelerator or Accelerator()
         
         if vqgan_path is None and latent_action_path is None:
             self.initialized = False
             return
             
         self.initialized = True
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore")
 
-            # Load VQGAN
-            self.vqgan = OmniTokenizer_VQGAN.load_from_checkpoint(vqgan_path, strict=False, weights_only=False)
-            self.vqgan.eval()
-            
             # Load config
             with open(config_path, "r") as file:
                 self.config = yaml.safe_load(file)
                 
+            # Load VQGAN - let accelerator manage device placement
+            self.vqgan = OmniTokenizer_VQGAN.load_from_checkpoint(vqgan_path, strict=False, weights_only=False)
+            self.vqgan.eval()
+            
             # Load latent action model
             self.latent_action = LatentActionModel(
                 in_dim=self.config['model']['in_dim']['value'],    
@@ -49,10 +50,15 @@ class SequenceTokenizer(torch.nn.Module):
                 dropout=self.config['model']['dropout']['value']
             )
 
-            # Load state dict
-            state_dict = torch.load(latent_action_path, map_location="cuda:0")
+            # Load state dict with accelerator's device mapping
+            state_dict = self.accelerator.unwrap_model(torch.load(latent_action_path, 
+                                                         map_location=self.accelerator.device))
             new_state_dict = {key.replace("module.", ""): value for key, value in state_dict.items()}
             self.latent_action.load_state_dict(new_state_dict)
+            
+            # Use accelerator to prepare models
+            self.vqgan = self.accelerator.prepare(self.vqgan)
+            self.latent_action = self.accelerator.prepare(self.latent_action)
             
             self.add_module('vqgan', self.vqgan)
             self.add_module('latent_action', self.latent_action)
@@ -66,8 +72,8 @@ class SequenceTokenizer(torch.nn.Module):
             if not isinstance(sequence, torch.Tensor):
                 sequence = torch.tensor(sequence)
             
-            device = next(self.parameters()).device 
-            sequence = sequence.to(device)
+            # Use accelerator device
+            sequence = sequence.to(self.accelerator.device)
             
             gt_embeddings, gt_encodings = self.vqgan.encode(sequence, True, True)
 
@@ -82,7 +88,7 @@ class SequenceTokenizer(torch.nn.Module):
 
             data, min_val, max_val = self._normalize(data)
     
-            data = data.unsqueeze(0).to(self.device)
+            data = data.unsqueeze(0).to(self.accelerator.device)
 
             outputs = self.latent_action({'tokens': data})
 
@@ -92,7 +98,6 @@ class SequenceTokenizer(torch.nn.Module):
                 return gt_embeddings, actions
 
             recons = outputs['recon']
-
 
             recons_norm = self._denormalize(recons, min_val, max_val)
 
@@ -119,14 +124,12 @@ class SequenceTokenizer(torch.nn.Module):
 
 
     def extract_actions(self, gt_embeddings):
-
         with torch.no_grad():
-
             data = gt_embeddings
 
             data, min_val, max_val = self._normalize(data)
     
-            data = data.unsqueeze(0).to(self.device)
+            data = data.unsqueeze(0).to(self.accelerator.device)
 
             outputs = self.latent_action({'tokens': data})
 

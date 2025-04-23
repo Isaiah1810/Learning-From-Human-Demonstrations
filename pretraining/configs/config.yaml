@@ -1,8 +1,8 @@
 model:
   # === Input / Output dims ===
-  input_dim: 128          # Dimension of video token input
+  input_dim: 8          # Dimension of video token input
   model_dim: 256          # Internal transformer model dimension
-  action_dim: 16          # Output action vector dimension per token
+  action_dim: 7          # Output action vector dimension per token
 
   # === Transformer architecture ===
   encoder_depth: 4
@@ -30,7 +30,17 @@ model:
   # === Attention extras ===
   attn_num_null_kv: 2     # Number of learned null key-value pairs
 
-
+  # === Tokenizer Params ===
+  image_embed_model_path: './imagenet_k600.ckpt'
+  latent_action_path: './latent_action.pth'
+  latent_action_params:
+    in_dim: 8
+    model_dim: 128
+    latent_dim: 7
+    enc_blocks: 2
+    dec_blocks: 2
+    num_heads: 8
+    dropout: 0.2
 
 train:
   # === Training schedule ===
@@ -51,14 +61,14 @@ train:
   # === Dataset ===
   dataset_size: 10000
   frames: 8
-  dataset_config: "./configs/dataset_config.yaml"
+  dataset_path: "/scratch/iew/sthv2/tokens/vqgan/train"
 
   # === Logging & Output ===
-  results_folder: "./results/run1"
+  results_folder: "./results/run2"
 
   # === Weights & Biases ===
-  wandb_mode: "disabled"          # 'disabled', 'online', or 'offline'
+  wandb_mode: "online"          # 'disabled', 'online', or 'offline'
   wandb_project: "video-action"
-  run_id: null                    # used for resume logic across preemptions
+  run_id: "test-run-1"                    # used for resume logic across preemptions
   project_name: "video-action"
 

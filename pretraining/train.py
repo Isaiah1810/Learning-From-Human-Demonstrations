@@ -5,7 +5,7 @@ from model.action_predictor import VideoToAction
 from model.trainer import VideoActionTrainer
 import wandb
 import torch.multiprocessing as mp
-
+from data.dataset import VideoDataset
 mp.set_start_method('spawn', force=True)
 
 def load_config(path):
@@ -45,8 +45,7 @@ def main():
     }
     config['train']['run_id'] = wandb_id
 
-    # Dataset Config
-    d_config_path = config['train']['dataset_config']
+    data_dir = config['train']['dataset_path']
 
     # Model
     model = VideoToAction(
@@ -67,13 +66,17 @@ def main():
         use_peg_spatial_layers_dec=model_cfg['use_peg_spatial_layers_dec'],
         use_peg_temporal_layers_dec=model_cfg['use_peg_temporal_layers_dec'],
         attn_num_null_kv=model_cfg['attn_num_null_kv'],
-        loss_type=model_cfg['loss_type']
+        loss_type=train_cfg['loss_type'],
+        tokenizer_config=config,
+        use_tokenizer=True
     )
+
+    dataset = VideoDataset(data_dir)
 
     # Trainer
     trainer = VideoActionTrainer(
         model=model,
-     #   dataset=dataset,
+        dataset=dataset,
         batch_size=train_cfg['batch_size'],
         num_train_steps=train_cfg['num_train_steps'],
         results_folder=str(results_folder),
@@ -86,7 +89,7 @@ def main():
         milestone_optim=train_cfg.get('milestone_optim', True),
         accelerator_kwargs=dict(log_with="wandb"),
         resume_checkpoint=str(resume_ckpt_path) if resume_ckpt_path else None,
-        wandb_kwargs=wandb_kwargs,
+        wandb_kwargs=wandb_kwargs
     )
 
     trainer.train()

@@ -1,37 +1,17 @@
 import torch 
 from torch.utils.data import Dataset
-from sequence_tokenizer import SequenceTokenizer
 import os
 import numpy as np
 import h5py
 from PIL import Image
 import yaml
-from accelerate import Accelerator
 
 
 class VideoDataset(Dataset):
-    def __init__(self, config_path, tokenizer=None, sequence_len=20, 
+    def __init__(self, data_dir, sequence_len=20, 
                  is_embedded=True, skip_max=3, width=16, height=16, input_dim=8, 
-                 action_dim=7, accelerator=None):
+                 action_dim=7):
         
-        # Store accelerator instance
-        self.accelerator = accelerator or Accelerator()
-        
-        with open(config_path, "r") as file:
-                self.config = yaml.safe_load(file)
-
-        data_dir = self.config['dataset']['data_dir']
-        embed_model_path = self.config['dataset']['embed_model_path']
-        la_path = self.config['dataset']['la_path']
-        
-        if tokenizer is not None:
-            self.tokenizer = tokenizer
-        else:
-            # Pass accelerator to tokenizer
-            self.tokenizer = SequenceTokenizer(embed_model_path, la_path, config_path, accelerator=self.accelerator)
-            if self.accelerator.is_main_process:
-                print("WARNING: Creating New Tokenizer Instance in Dataset is slow for distributed training")
-
         self.sequence_len = sequence_len
         self.is_embedded = is_embedded
         self.skip_max = skip_max
@@ -47,17 +27,11 @@ class VideoDataset(Dataset):
         return len(self.files)
     
     def __getitem__(self, idx):
-        # Calculate effective index for distributed training
-        if hasattr(self.accelerator, 'split_batches') and self.accelerator.split_batches:
-            # Adjust index based on process if needed
-            effective_idx = idx
-        else:
-            effective_idx = idx
-
+        
         skip_V = np.random.randint(0, self.skip_max + 1)
         skip_S = np.random.randint(0, self.skip_max + 1)
 
-        file_path = self.files[effective_idx]
+        file_path = self.files[idx]
     
         if self.is_embedded:
             with h5py.File(file_path, 'r') as f:
@@ -67,18 +41,20 @@ class VideoDataset(Dataset):
                 norm_data, _, _ = self._normalize(data)
 
         else:
-            imgs = []
-            num_frames = min(len(os.listdir(file_path)), self.sequence_len)
-            for file in os.listdir(file_path)[:num_frames]:
-                img = Image.open(os.path.join(file_path, file))
-                img = img.resize((128, 128))
-                inp = torch.tensor(np.array(img).transpose(2, 1, 0).reshape((1, 3, 128, 128)), dtype=torch.float32)
-                inp = 2 * (inp / 255) - 1
-                imgs.append(inp)
+            print("Requires Embedded Data")
+            raise NotImplementedError
+            # imgs = []
+            # num_frames = min(len(os.listdir(file_path)), self.sequence_len)
+            # for file in os.listdir(file_path)[:num_frames]:
+            #     img = Image.open(os.path.join(file_path, file))
+            #     img = img.resize((128, 128))
+            #     inp = torch.tensor(np.array(img).transpose(2, 1, 0).reshape((1, 3, 128, 128)), dtype=torch.float32)
+            #     inp = 2 * (inp / 255) - 1
+            #     imgs.append(inp)
 
-            sequence = torch.concatenate(imgs, dim=0)
-            data = self.tokenizer.encode(sequence, False, False)
-            norm_data, _, _ = self._normalize(data)
+            # sequence = torch.concatenate(imgs, dim=0)
+            # data = self.tokenizer.encode(sequence, False, False)
+            # norm_data, _, _ = self._normalize(data)
 
         V = norm_data[::skip_V+1]
         S = norm_data[::skip_S+1]
@@ -105,17 +81,9 @@ class VideoDataset(Dataset):
             padding = torch.zeros(S_pad_len, self.width * self.height, self.input_dim)
             S = torch.cat((S, padding), dim=0)
 
-        A = self.tokenizer.extract_actions(S)
-        A = A.reshape((self.sequence_len-1, 1, 1, self.action_dim))
-
         V = V.reshape((self.sequence_len, self.height, self.width, self.input_dim))
 
         S = S.reshape((self.sequence_len, self.height, self.width, self.input_dim))
-
-        # Note: Here we're using accelerator device
-        action_padding = torch.zeros((1, 1, 1, self.action_dim)).to(self.accelerator.device)
-        A = torch.cat((action_padding, A), dim=0)
-        A = A.expand(self.sequence_len, self.height, self.width, self.action_dim)
 
         padding_mask_V = torch.zeros(self.sequence_len, dtype=torch.bool)
         padding_mask_SA = torch.zeros(self.sequence_len, dtype=torch.bool)
@@ -126,9 +94,8 @@ class VideoDataset(Dataset):
         # This is important for Accelerate to handle the data properly later
         V = V.detach().cpu()
         S = S.detach().cpu()
-        A = A.detach().requires_grad_(False).cpu()
 
-        return V, S, A, padding_mask_V, padding_mask_SA
+        return V, S, torch.tensor(0), padding_mask_V, padding_mask_SA
 
 
     def _normalize(self, data):

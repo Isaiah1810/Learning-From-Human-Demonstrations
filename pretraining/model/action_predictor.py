@@ -1,8 +1,9 @@
 from torch import nn
+import torch
 import torch.nn.functional as F
 from .encoder import VideoEncoder
 from .decoder import VideoDecoder
-
+from sequence_tokenizer import SequenceTokenizer
 
 def MLPProjector(input_dim, hidden_dim, output_dim):
     return nn.Sequential(
@@ -34,6 +35,8 @@ class VideoToAction(nn.Module):
         use_peg_temporal_layers_dec=None,
         attn_num_null_kv=2,
         loss_type='l2',
+        tokenizer_config=None,
+        use_tokenizer=True
     ):
         super().__init__()
 
@@ -74,6 +77,10 @@ class VideoToAction(nn.Module):
             use_cross_attn_spatial=True,
             use_cross_attn_temporal=True
         )
+        if use_tokenizer:
+            self.tokenizer = SequenceTokenizer(tokenizer_config, 'cuda')
+        else:
+            self.tokenizer = None
 
     def forward(self, V, S, A=None, temporal_mask_V=None, temporal_mask_S=None, context_mask=None, return_loss=True):
         """
@@ -90,6 +97,16 @@ class VideoToAction(nn.Module):
             If return_loss=True: tuple (A_hat, loss)
             If return_loss=False: A_hat only
         """
+        if (A == 0).all(): 
+            if self.tokenizer is None:
+                assert "Tokenizer must be initialized if A is all 0"
+            action = self.tokenizer.extract_actions(S)
+            action_pad = torch.zeros((action.shape[0], 1, action.shape[2])).to(action.device)
+            A = torch.cat((action_pad, action), dim=1).unsqueeze(2).unsqueeze(3)
+            A = A.expand(-1, -1, S.shape[2], S.shape[3], -1)
+        else:
+            raise NotImplementedError
+
         V = self.encoder_input_proj(V)
         S = self.decoder_input_proj(S)
 
@@ -97,6 +114,7 @@ class VideoToAction(nn.Module):
         dec_out = self.decoder(S, context=enc_out, temporal_mask=temporal_mask_S, context_mask=context_mask)
 
         A_hat = self.output_proj(dec_out)  # predicted actions
+
 
         if return_loss:
             assert A is not None, "Ground truth actions (A) must be provided if return_loss=True"

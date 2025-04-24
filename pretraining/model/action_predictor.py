@@ -105,7 +105,14 @@ class VideoToAction(nn.Module):
             A = torch.cat((action_pad, action), dim=1).unsqueeze(2).unsqueeze(3)
             A = A.expand(-1, -1, S.shape[2], S.shape[3], -1)
         else:
-            raise NotImplementedError
+            if A.dim() == 3:
+                sequence_len = S.shape[1]
+                if A.shape[1] != sequence_len:
+                    action_pad = torch.zeros((A.shape[0], 1, A.shape[2])).to(A.device)
+                    A = torch.cat((action_pad, A), dim=1).unsqueeze(2).unsqueeze(3)
+                    A = A.expand(-1, -1, S.shape[2], S.shape[3], -1)
+            else:
+                raise NotImplementedError
 
         V = self.encoder_input_proj(V)
         S = self.decoder_input_proj(S)

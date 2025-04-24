@@ -1,0 +1,127 @@
+loaded pretrained LPIPS loss from /scratch/iew/Learning-From-Human-Demonstrations/pretraining/sequence_tokenizer/src/modules/OmniTokenizer/modules/cache/vgg.pth
+Resumed from checkpoint at step 199000
+Resumed from checkpoint results/run1/current_model.pt at step 199000
+Traceback (most recent call last):
+  File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/train.py", line 96, in <module>
+    main()
+  File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/train.py", line 92, in main
+    trainer.train()
+  File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/trainer.py", line 183, in train
+    loss = self.train_step()
+  File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/trainer.py", line 157, in train_step
+    A_hat, loss = self.model(V, S, A, temporal_mask_V=mask_V, temporal_mask_S=mask_S, context_mask=mask_V)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1532, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1541, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1593, in forward
+    else self._run_ddp_forward(*inputs, **kwargs)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1411, in _run_ddp_forward
+    return self.module(*inputs, **kwargs)  # type: ignore[index]
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1532, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1541, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/accelerate/utils/operations.py", line 814, in forward
+    return model_forward(*args, **kwargs)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/accelerate/utils/operations.py", line 802, in __call__
+    return convert_to_fp32(self.model_forward(*args, **kwargs))
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/amp/autocast_mode.py", line 16, in decorate_autocast
+    return func(*args, **kwargs)
+  File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/action_predictor.py", line 96, in forward
+    enc_out = self.encoder(V, temporal_mask=temporal_mask_V)  # (B, T, H, W, model_dim)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1532, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1541, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/encoder.py", line 68, in forward
+    return self.encoder(video, temporal_mask=temporal_mask)  # output: (B, T, H, W, C)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1532, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1541, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/attention.py", line 535, in forward
+    x = block(x, context=context, context_mask=context_mask, temporal_mask=temporal_mask)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1532, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1541, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/attention.py", line 454, in forward
+    x_spatial = self.spatial_attn(x_spatial, attn_bias=attn_bias_spatial) + x_spatial
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1532, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1541, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/attention.py", line 162, in forward
+    q, k = map(l2norm, (q, k))
+  File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/attention.py", line 27, in l2norm
+    return F.normalize(t, dim=-1)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/functional.py", line 4780, in normalize
+    denom = input.norm(p, dim, keepdim=True).clamp_min(eps).expand_as(input)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/_tensor.py", line 765, in norm
+    return torch.norm(self, p, dim, keepdim, dtype=dtype)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/functional.py", line 1631, in norm
+    return torch.linalg.vector_norm(input, _p, _dim, keepdim, dtype=dtype)
+KeyboardInterrupt
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/train.py", line 96, in <module>
+[rank0]:     main()
+[rank0]:   File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/train.py", line 92, in main
+[rank0]:     trainer.train()
+[rank0]:   File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/trainer.py", line 183, in train
+[rank0]:     loss = self.train_step()
+[rank0]:   File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/trainer.py", line 157, in train_step
+[rank0]:     A_hat, loss = self.model(V, S, A, temporal_mask_V=mask_V, temporal_mask_S=mask_S, context_mask=mask_V)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1532, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1541, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1593, in forward
+[rank0]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1411, in _run_ddp_forward
+[rank0]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1532, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1541, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/accelerate/utils/operations.py", line 814, in forward
+[rank0]:     return model_forward(*args, **kwargs)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/accelerate/utils/operations.py", line 802, in __call__
+[rank0]:     return convert_to_fp32(self.model_forward(*args, **kwargs))
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/amp/autocast_mode.py", line 16, in decorate_autocast
+[rank0]:     return func(*args, **kwargs)
+[rank0]:   File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/action_predictor.py", line 96, in forward
+[rank0]:     enc_out = self.encoder(V, temporal_mask=temporal_mask_V)  # (B, T, H, W, model_dim)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1532, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1541, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/encoder.py", line 68, in forward
+[rank0]:     return self.encoder(video, temporal_mask=temporal_mask)  # output: (B, T, H, W, C)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1532, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1541, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/attention.py", line 535, in forward
+[rank0]:     x = block(x, context=context, context_mask=context_mask, temporal_mask=temporal_mask)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1532, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1541, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/attention.py", line 454, in forward
+[rank0]:     x_spatial = self.spatial_attn(x_spatial, attn_bias=attn_bias_spatial) + x_spatial
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1532, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1541, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/attention.py", line 162, in forward
+[rank0]:     q, k = map(l2norm, (q, k))
+[rank0]:   File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/attention.py", line 27, in l2norm
+[rank0]:     return F.normalize(t, dim=-1)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/nn/functional.py", line 4780, in normalize
+[rank0]:     denom = input.norm(p, dim, keepdim=True).clamp_min(eps).expand_as(input)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/_tensor.py", line 765, in norm
+[rank0]:     return torch.norm(self, p, dim, keepdim, dtype=dtype)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/functional.py", line 1631, in norm
+[rank0]:     return torch.linalg.vector_norm(input, _p, _dim, keepdim, dtype=dtype)
+[rank0]: KeyboardInterrupt

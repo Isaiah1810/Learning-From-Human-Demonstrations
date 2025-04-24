@@ -59,13 +59,14 @@ class SequenceTokenizer(torch.nn.Module):
     def forward(self, sequence, latent_actions=True, reconstructions=False):
         return self.encode(sequence, latent_actions, reconstructions)
 
-    def encode(self, sequence, latent_actions=True, reconstructions=False):
+    def encode(self, sequence, latent_actions=True, reconstructions=False, return_min_max=False):
         with torch.no_grad():
- 
+            # Make sure sequence is on the right device
+            device = next(self.parameters()).device
             if not isinstance(sequence, torch.Tensor):
-                sequence = torch.tensor(sequence)
-            
-            
+                sequence = torch.tensor(sequence, device=device)
+            else:
+                sequence = sequence.to(device)
             gt_embeddings, gt_encodings = self.vqgan.encode(sequence, True, True)
 
             if not latent_actions and not reconstructions:
@@ -79,14 +80,17 @@ class SequenceTokenizer(torch.nn.Module):
 
             data, min_val, max_val = self._normalize(data)
     
-            data = data.unsqueeze(0)
+            data = data.unsqueeze(0).unsqueeze(0)
 
             outputs = self.latent_action({'tokens': data})
 
             actions = outputs['z_rep'].squeeze(2)
 
             if not reconstructions:
-                return gt_embeddings, actions
+                if return_min_max:
+                    return gt_embeddings, actions, min_val, max_val
+                else:
+                    return gt_embeddings, actions
 
             recons = outputs['recon']
 
@@ -109,7 +113,14 @@ class SequenceTokenizer(torch.nn.Module):
             recons_vids *= 2
 
             if not latent_actions:
-                return gt_embeddings, recons_vids
+                if return_min_max:
+                    gt_embeddings, recons_vids, min_val, max_val
+                else:
+                    return gt_embeddings, recons_vids
+
+            if return_min_max:
+
+                return gt_embeddings, actions, recons_vids, min_val, max_val
 
             return gt_embeddings, actions, recons_vids
 
@@ -131,6 +142,25 @@ class SequenceTokenizer(torch.nn.Module):
             actions = outputs['z_rep'].squeeze(2)
 
             return actions
+
+    def reconstruct(self, embeddings, actions, min_val, max_val, actions_only=False):
+        device = next(self.latent_action.parameters()).device
+        embeddings = embeddings.to(device)
+        actions = actions.to(device)
+        recons = self.latent_action.decode_actions(embeddings, actions, actions_only)
+        r0 = recons
+        recons = recons.reshape((recons.shape[0], recons.shape[1]*recons.shape[2], recons.shape[3]))
+        recons_norm = self._denormalize(recons, min_val.cpu(), max_val.cpu())
+
+        recons_norm = recons_norm.permute(0, 2, 1)
+        
+        encodings = self.vqgan.codebook.embeddings_to_encodings(recons_norm).cpu()
+
+        recons_vids = self.vqgan.decode(encodings, True)
+    
+        recons_vids *= 2        
+
+        return r0, recons_vids
 
     def _normalize(self, data):
         data_min = data.min(dim=(2), keepdims=True)[0]

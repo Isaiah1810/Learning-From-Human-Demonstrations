@@ -96,6 +96,22 @@ class LatentActionModel(nn.Module):
             "z_var": z_var
         }
 
+    def decode_actions(self, video_tokens, action_tokens, actions_only=False):
+        
+        action_tokens = self.action_up(action_tokens)
+        action_tokens = action_tokens.reshape((action_tokens.shape[0], action_tokens.shape[1], 1, 1, self.model_dim))
+        if actions_only:
+            video_action_tokens = action_tokens
+        else:
+            video_tokens = self.input_up(video_tokens[:, :-1])
+            video_action_tokens = video_tokens + action_tokens
+
+        
+
+        token_recon = self.decoder(video_action_tokens.squeeze(0))
+        
+        return token_recon
+
     def forward(self, batch: Dict) -> Dict:
         # Encode and Latent Action VAE
         outputs = self.encode(batch["tokens"])
@@ -126,6 +142,7 @@ class LatentActionModel(nn.Module):
         )
         
         return outputs
+
 
 if __name__ == "__main__":
 

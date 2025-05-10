@@ -8,6 +8,7 @@ from pathlib import Path
 from beartype import beartype
 from .action_predictor import VideoToAction
 
+torch.autograd.set_detect_anomaly(True, True)
 
 def cycle(dl, skipped_dl=None):
     """
@@ -140,6 +141,9 @@ class VideoActionTrainer(nn.Module):
             V, S, A, mask_V, mask_S = next(self.dl_iter)
             V, S, A, mask_V, mask_S = map(lambda x: x.to(self.device), (V, S, A, mask_V, mask_S))
             A_hat, loss = self.model(V, S, A, temporal_mask_V=mask_V, temporal_mask_S=mask_S, context_mask=mask_V)
+            if torch.isnan(loss):
+                self.print(f"NaN loss detected at step {self.steps}")
+                continue 
             self.accelerator.backward(loss / self.grad_accum_every)
             total_loss += loss.item() / self.grad_accum_every
 
@@ -153,8 +157,8 @@ class VideoActionTrainer(nn.Module):
             param_norm = torch.norm(torch.stack([torch.norm(p.detach(), 2) for p in self.model.parameters() if p.requires_grad]))
             grad_norm = torch.norm(torch.stack([torch.norm(p.grad.detach(), 2) for p in self.model.parameters() if p.grad is not None]))
 
-            if not type(grad_norm.item()) == float:
-                print("nan grad norm detected")
+            if torch.isnan(grad_norm):
+                self.print("NaN grad norm detected")
 
             
 

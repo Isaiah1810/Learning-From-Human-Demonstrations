@@ -44,14 +44,3 @@ accelerate launch train.py --config <config path>
 Parameters:
 - `<config path>`: Path to the configuration file
 
-## Features
-
-[Optionally list key features of your project here]
-
-## License
-
-[Include license information if applicable]
-
-## Contact
-
-[Optional: Add contact information or ways to contribute]

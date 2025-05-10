@@ -144,16 +144,18 @@ class SequenceTokenizer(torch.nn.Module):
             return actions
 
     def reconstruct(self, embeddings, actions, min_val, max_val, actions_only=False):
+        # Get predicted frames from previous frames and actions
         device = next(self.latent_action.parameters()).device
         embeddings = embeddings.to(device)
         actions = actions.to(device)
         recons = self.latent_action.decode_actions(embeddings, actions, actions_only)
         r0 = recons
         recons = recons.reshape((recons.shape[0], recons.shape[1]*recons.shape[2], recons.shape[3]))
-        recons_norm = self._denormalize(recons, min_val.cpu(), max_val.cpu())
 
+        # Get Pixel Space Images from reconstructed embeddings
+        recons_norm = self._denormalize(recons, min_val.cpu(), max_val.cpu())
         recons_norm = recons_norm.permute(0, 2, 1)
-        
+    
         encodings = self.vqgan.codebook.embeddings_to_encodings(recons_norm).cpu()
 
         recons_vids = self.vqgan.decode(encodings, True)

@@ -18,3 +18,5 @@ model:
     value: 8
   dropout:
     value: 0.2
+  global_patch:
+    value: True

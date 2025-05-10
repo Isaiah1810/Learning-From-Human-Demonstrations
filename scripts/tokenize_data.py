@@ -13,7 +13,7 @@ sys.path.append("./src/modules")
 
 def load_vqgan_model():
     """Load the VQGAN model."""
-    from OmniTokenizer import OmniTokenizer_VQGAN
+    from latent_action_model.src.modules.OmniTokenizer import OmniTokenizer_VQGAN
     return OmniTokenizer_VQGAN.load_from_checkpoint("./imagenet_k600.ckpt", strict=False, weights_only=False)
 
 def preprocess_frame(path, size):
@@ -25,43 +25,6 @@ def preprocess_frame(path, size):
     img = ToTensor()(img)
     img = img * 2 - 1
     return img
-
-# def tokenize_video(input_path, size, model, device, ep_len=100, sample_len=20):
-#     """Tokenize all frames in a video directory."""
-#     import torch
-#     import os
-#     from torchvision.transforms import ToTensor
-#     from PIL import Image
-    
-#     frames = []
-#     files = sorted([os.path.join(input_path, file) for file in os.listdir(input_path) 
-#                    if file.lower().endswith(('.png', '.jpg', '.jpeg'))])
-#     print(input_path, os.listdir(input_path))
-#     all_tokens = []
-        
-#     for file_path in files:
-#         img = Image.open(file_path)
-#         img = img.resize((size, size))
-#         img = ToTensor()(img)
-#         frames.append(img)
-
-#     ep_len = len(frames)
-#     seq_per_episode = ep_len - sample_len + 1
-    
-#     for i in range(seq_per_episode):
-#         seq_frames = frames[i:i+sample_len]
-
-#         if seq_frames:
-#                 remainder = (len(seq_frames) - 1) % 4
-#                 if remainder != 0:
-#                     seq_frames.extend([seq_frames[-1]] * (4 - remainder))
-#                 frame_tensor = torch.stack(seq_frames, dim=2).reshape((1, 3, -1, size, size)).to(device)
-#                 tokens = model.encode(frame_tensor, False)
-#                 all_tokens.append(tokens)
-    
-#     if all_tokens:
-#         return all_tokens
-#     return torch.tensor([])
 
 def tokenize_video(input_path, size, model, device, ep_len=100, sample_len=20):
     import torch
@@ -140,13 +103,6 @@ def vqgan_tokenizer(input_path: str, output_path: str, size: int, device: str, e
                         if os.path.exists(os.path.join(data_dir, item['id'])):
                             test_dirs.append(os.path.join(data_dir, item['id']))
 
-
-
-    # if all(os.path.isdir(os.path.join(input_path, d)) for d in os.listdir(input_path) if not d.startswith('.')):
-    #     dirs = [os.path.join(input_path, d) for d in os.listdir(input_path) if os.path.isdir(os.path.join(input_path, d))]
-    # else:
-    #     dirs = [input_path]
-
     train_dirs = [os.path.join(input_path, d) for d in train_dirs if os.path.isdir(os.path.join(input_path, d))]
     val_dirs = [os.path.join(input_path, d) for d in val_dirs if os.path.isdir(os.path.join(input_path, d))]
     test_dirs = [os.path.join(input_path, d) for d in test_dirs if os.path.isdir(os.path.join(input_path, d))]
@@ -188,8 +144,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Convert videos to latent representations")
     parser.add_argument("path", help="Path to dataset directory")
     parser.add_argument("output_path", help="Path to save output")
-    parser.add_argument("tokenizer", choices=["dinov2", "vqgan"], help="Tokenizer type")
-    parser.add_argument("size", type=int, help="Image size")
+    parser.add_argument("size", type=int, help="Pre-embedded image size")
     
     args = parser.parse_args()
 
@@ -201,10 +156,7 @@ if __name__ == "__main__":
     if not os.path.isdir(args.path):
         print("Error: Directory does not exist")
         exit(1)
-    
-    if args.tokenizer == "dinov2" and args.size % 14 != 0:
-        print("Error: Size must be a multiple of 14 for DINOv2")
-        exit(1)
+
     elif args.tokenizer == "vqgan" and args.size % 8 != 0:
         print("Error: Size must be a multiple of 8 for VQGAN")
         exit(1)

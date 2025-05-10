@@ -1,0 +1,41 @@
+model:
+  in_dim:
+    value: 8
+  model_dim:
+    value: 128
+  latent_dim:
+    value: 7
+  enc_blocks:
+    value: 2
+  dec_blocks:
+    value: 2
+  num_heads:
+    value: 8
+  dropout:
+    value: 0.2
+  global_patch:
+    value: True
+
+training:
+  data_dir:
+    value: '/scratch/iew/sthv2/tokens/vqgan'
+  batch_size:
+    value: 2
+  epochs:
+    value: 5
+  learning_rate:
+    value: 0.0001
+  shuffle:
+    value: True
+  output_dir:
+    value: "/scratch/iew/Learning-From-Human-Demonstrations/latent_action_model/outputs" 
+  wandb_project:
+    value: "latent_action_model"
+
+recreation:
+  checkpoint_path:
+    value: './models/global_7dim_64_latent.pth'
+  video_path:
+    value: 'Images/730/'
+  output_path:
+    value: './traj_anim.gif'

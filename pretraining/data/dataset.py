@@ -43,18 +43,6 @@ class VideoDataset(Dataset):
         else:
             print("Requires Embedded Data")
             raise NotImplementedError
-            # imgs = []
-            # num_frames = min(len(os.listdir(file_path)), self.sequence_len)
-            # for file in os.listdir(file_path)[:num_frames]:
-            #     img = Image.open(os.path.join(file_path, file))
-            #     img = img.resize((128, 128))
-            #     inp = torch.tensor(np.array(img).transpose(2, 1, 0).reshape((1, 3, 128, 128)), dtype=torch.float32)
-            #     inp = 2 * (inp / 255) - 1
-            #     imgs.append(inp)
-
-            # sequence = torch.concatenate(imgs, dim=0)
-            # data = self.tokenizer.encode(sequence, False, False)
-            # norm_data, _, _ = self._normalize(data)
 
         V = norm_data[::skip_V+1]
         S = norm_data[::skip_S+1]

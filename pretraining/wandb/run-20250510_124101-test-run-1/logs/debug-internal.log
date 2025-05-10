@@ -1,0 +1,7 @@
+{"time":"2025-05-10T12:41:01.730299133-04:00","level":"INFO","msg":"stream: starting","core version":"0.19.9","symlink path":"/scratch/iew/Learning-From-Human-Demonstrations/pretraining/wandb/run-20250510_124101-test-run-1/logs/debug-core.log"}
+{"time":"2025-05-10T12:41:01.909278562-04:00","level":"INFO","msg":"created new stream","id":"test-run-1"}
+{"time":"2025-05-10T12:41:01.909338578-04:00","level":"INFO","msg":"stream: started","id":"test-run-1"}
+{"time":"2025-05-10T12:41:01.909352374-04:00","level":"INFO","msg":"sender: started","stream_id":"test-run-1"}
+{"time":"2025-05-10T12:41:01.909356729-04:00","level":"INFO","msg":"handler: started","stream_id":"test-run-1"}
+{"time":"2025-05-10T12:41:01.909364047-04:00","level":"INFO","msg":"writer: Do: started","stream_id":"test-run-1"}
+{"time":"2025-05-10T12:41:02.51035576-04:00","level":"INFO","msg":"Starting system monitor"}

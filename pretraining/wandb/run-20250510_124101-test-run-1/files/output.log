@@ -1,0 +1,66 @@
+Resumed from checkpoint at step 131000
+Resumed from checkpoint results/run2/current_model.pt at step 131000
+Traceback (most recent call last):
+  File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/train.py", line 99, in <module>
+    main()
+  File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/train.py", line 95, in main
+    trainer.train()
+  File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/trainer.py", line 168, in train
+    loss = self.train_step()
+  File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/trainer.py", line 140, in train_step
+    V, S, A, mask_V, mask_S = next(self.dl_iter)
+  File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/trainer.py", line 18, in cycle
+    for data in skipped_dl:
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/accelerate/data_loader.py", line 563, in __iter__
+    dataloader_iter = self.base_dataloader.__iter__()
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 439, in __iter__
+    return self._get_iterator()
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 387, in _get_iterator
+    return _MultiProcessingDataLoaderIter(self)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1040, in __init__
+    w.start()
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/multiprocessing/process.py", line 121, in start
+    self._popen = self._Popen(self)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/multiprocessing/context.py", line 224, in _Popen
+    return _default_context.get_context().Process._Popen(process_obj)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/multiprocessing/context.py", line 288, in _Popen
+    return Popen(process_obj)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/multiprocessing/popen_spawn_posix.py", line 32, in __init__
+    super().__init__(process_obj)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/multiprocessing/popen_fork.py", line 19, in __init__
+    self._launch(process_obj)
+  File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/multiprocessing/popen_spawn_posix.py", line 62, in _launch
+    f.write(fp.getbuffer())
+KeyboardInterrupt
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/train.py", line 99, in <module>
+[rank0]:     main()
+[rank0]:   File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/train.py", line 95, in main
+[rank0]:     trainer.train()
+[rank0]:   File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/trainer.py", line 168, in train
+[rank0]:     loss = self.train_step()
+[rank0]:   File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/trainer.py", line 140, in train_step
+[rank0]:     V, S, A, mask_V, mask_S = next(self.dl_iter)
+[rank0]:   File "/scratch/iew/Learning-From-Human-Demonstrations/pretraining/model/trainer.py", line 18, in cycle
+[rank0]:     for data in skipped_dl:
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/accelerate/data_loader.py", line 563, in __iter__
+[rank0]:     dataloader_iter = self.base_dataloader.__iter__()
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 439, in __iter__
+[rank0]:     return self._get_iterator()
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 387, in _get_iterator
+[rank0]:     return _MultiProcessingDataLoaderIter(self)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1040, in __init__
+[rank0]:     w.start()
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/multiprocessing/process.py", line 121, in start
+[rank0]:     self._popen = self._Popen(self)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/multiprocessing/context.py", line 224, in _Popen
+[rank0]:     return _default_context.get_context().Process._Popen(process_obj)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/multiprocessing/context.py", line 288, in _Popen
+[rank0]:     return Popen(process_obj)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/multiprocessing/popen_spawn_posix.py", line 32, in __init__
+[rank0]:     super().__init__(process_obj)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/multiprocessing/popen_fork.py", line 19, in __init__
+[rank0]:     self._launch(process_obj)
+[rank0]:   File "/scratch/iew/miniconda3/envs/lfhd/lib/python3.10/multiprocessing/popen_spawn_posix.py", line 62, in _launch
+[rank0]:     f.write(fp.getbuffer())
+[rank0]: KeyboardInterrupt

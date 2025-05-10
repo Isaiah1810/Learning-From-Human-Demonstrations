@@ -153,6 +153,11 @@ class VideoActionTrainer(nn.Module):
             param_norm = torch.norm(torch.stack([torch.norm(p.detach(), 2) for p in self.model.parameters() if p.requires_grad]))
             grad_norm = torch.norm(torch.stack([torch.norm(p.grad.detach(), 2) for p in self.model.parameters() if p.grad is not None]))
 
+            if not type(grad_norm.item()) == float:
+                print("nan grad norm detected")
+
+            
+
             self.accelerator.log({
                 "loss": total_loss,
                 "step": self.steps,

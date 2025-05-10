@@ -219,7 +219,7 @@ class LatentActionModel(nn.Module):
                 - loss: Combined loss
         """
         # Encode input tokens to latent action space
-        outputs = self.encode(batch["tokens"])
+        outputs = self.encode(batch["tokens"].squeeze(0))
         
         # Project input tokens to model dimension
         # Shape: (B, T-1, WxH, model_dim)

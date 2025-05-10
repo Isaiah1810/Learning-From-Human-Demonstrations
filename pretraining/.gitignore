@@ -1,1 +1,9 @@
+# Ignore results directory
 results/
+
+# Ignore specific pretrained model checkpoints
+pretraining/imagenet_k600.ckpt
+pretraining/latent_action.pth
+
+# Ignore Weights & Biases logs
+wandb/

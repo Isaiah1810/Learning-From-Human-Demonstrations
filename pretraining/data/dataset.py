@@ -78,8 +78,6 @@ class VideoDataset(Dataset):
         padding_mask_V[:self.sequence_len - V_pad_len] = True
         padding_mask_SA[:self.sequence_len - S_pad_len] = True
 
-        # Detach and move to CPU before returning
-        # This is important for Accelerate to handle the data properly later
         V = V.detach().cpu()
         S = S.detach().cpu()
 

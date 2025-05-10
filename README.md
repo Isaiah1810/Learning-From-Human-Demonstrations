@@ -1,6 +1,6 @@
 # Project Name
 
-Brief description of your project and what it does.
+
 
 ## Installation
 
@@ -23,7 +23,7 @@ python scripts/tokenize_data.py <path> <output_path> <image_size>
 Parameters:
 - `<path>`: Path to the input dataset
 - `<output_path>`: Path where tokenized dataset will be saved
-- `<image_size>`: Size of the images (in pixels)
+- `<image_size>`: Size to scale images to (in pixels)
 
 ### Training Latent Action Model
 
